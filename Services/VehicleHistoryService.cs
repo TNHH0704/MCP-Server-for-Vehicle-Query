@@ -79,6 +79,14 @@ public class VehicleHistoryService
         return Math.Truncate(value * 1000000) / 1000000;
     }
 
+    /// <summary>
+    /// Round a number to 6 decimal places
+    /// </summary>
+    private static double RoundTo6Decimals(double value)
+    {
+        return Math.Round(value, 6);
+    }
+
     #region Helper Methods
 
     /// <summary>
@@ -160,8 +168,8 @@ public class VehicleHistoryService
             {
                 Timestamp = ConvertGpsTimeToDateTime(w.GpsTime).ToString("yyyy-MM-dd HH:mm:ss"),
                 RawGpsTime = w.GpsTime,
-                Latitude = TruncateTo6Decimals(w.Y / 1000000.0),
-                Longitude = TruncateTo6Decimals(w.X / 1000000.0),
+                Latitude = RoundTo6Decimals(w.Y / 1000000.0),
+                Longitude = RoundTo6Decimals(w.X / 1000000.0),
                 Altitude = w.Z,
                 Speed = w.Speed / 100.0, // Speed stored as speed * 100 (e.g., 500 = 5 km/h)
                 Heading = w.Heading,
@@ -324,30 +332,38 @@ public class VehicleHistoryService
             throw new InvalidOperationException($"No moving waypoints found for vehicle {vehicleId} (all waypoints have zero speed).");
         }
 
-        var orderedWaypoints = movingWaypoints.OrderBy(w => w.GpsTime).ToList();
+        // Use all waypoints for distance calculation (like ConvertToWaypointSummaries does)
+        var orderedWaypoints = waypoints.OrderBy(w => w.GpsTime).ToList();
         var firstWaypoint = orderedWaypoints.First();
         var lastWaypoint = orderedWaypoints.Last();
 
+        // Calculate total distance using GPS-based cumulative distance from ALL waypoints
+        var waypointSummaries = ConvertToWaypointSummaries(orderedWaypoints);
+        var totalGpsDistance = waypointSummaries.Last().CumulativeDistanceKm;
+
         var durationSeconds = lastWaypoint.GpsTime - firstWaypoint.GpsTime;
-        var speeds = movingWaypoints.Select(w => w.Speed / 100.0).ToList();
+        // Use all waypoints for average speed calculation (consistent with history methods)
+        var allSpeeds = orderedWaypoints.Select(w => w.Speed / 100.0).ToList();
+        // Keep moving waypoints for max speed (only consider periods of movement)
+        var movingSpeeds = movingWaypoints.Select(w => w.Speed / 100.0).ToList();
 
         return new VehicleTripSummary
         {
             VehicleId = vehicleId,
             StartTime = ConvertGpsTimeToDateTime(firstWaypoint.GpsTime).ToString("yyyy-MM-dd HH:mm:ss"),
             EndTime = ConvertGpsTimeToDateTime(lastWaypoint.GpsTime).ToString("yyyy-MM-dd HH:mm:ss"),
-            TotalDistanceKm = Math.Round((lastWaypoint.Mile - firstWaypoint.Mile) / 1000.0, 3),
+            TotalDistanceKm = Math.Round(totalGpsDistance, 3), // Use GPS-calculated distance from ALL waypoints
             TotalGpsDistanceKm = Math.Round((lastWaypoint.GpsMile - firstWaypoint.GpsMile) / 1000.0, 2),
             DurationHours = Math.Round(durationSeconds / 3600.0, 2),
-            AverageSpeedKmh = Math.Round(speeds.Average(), 2),
-            MaxSpeedKmh = Math.Round(speeds.Max(), 2),
+            AverageSpeedKmh = Math.Round(allSpeeds.Average(), 2), // Use all waypoints for average speed
+            MaxSpeedKmh = Math.Round(movingSpeeds.Max(), 2), // Use moving waypoints for max speed
             StopCount = CountStops(orderedWaypoints),
             TotalWaypoints = waypoints.Count,
             MovingWaypoints = movingWaypoints.Count,
-            StartLatitude = TruncateTo6Decimals(firstWaypoint.Y / 1000000.0),
-            StartLongitude = TruncateTo6Decimals(firstWaypoint.X / 1000000.0),
-            EndLatitude = TruncateTo6Decimals(lastWaypoint.Y / 1000000.0),
-            EndLongitude = TruncateTo6Decimals(lastWaypoint.X / 1000000.0)
+            StartLatitude = RoundTo6Decimals(firstWaypoint.Y / 1000000.0),
+            StartLongitude = RoundTo6Decimals(firstWaypoint.X / 1000000.0),
+            EndLatitude = RoundTo6Decimals(lastWaypoint.Y / 1000000.0),
+            EndLongitude = RoundTo6Decimals(lastWaypoint.X / 1000000.0)
         };
     }
 
