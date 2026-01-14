@@ -56,7 +56,6 @@ public class RealTimeStatusDto
     public bool IsStopped => StatusCode == 0;
     public bool IsIdle => StatusCode == 1;
     public bool IsRunning { get; set; }
-    public bool IsInReverse { get; set; }
 }
 
 public class RealTimeDeviceDto
@@ -85,8 +84,15 @@ public class RealTimeTripDto
 
 public class RealTimeDailyStatsDto
 {
-    public int StopCount { get; set; }
-    public int IdleCount { get; set; }
+    /// <summary>
+    /// Number of times the vehicle engine was turned off
+    /// </summary>
+    public int EngineOffCount { get; set; }
+
+    /// <summary>
+    /// Number of times the vehicle stopped (but engine may still be on)
+    /// </summary>
+    public int VehicleStopCount { get; set; }
     public double TotalDistance { get; set; }
     public int RunTime { get; set; }
     public int IdleTime { get; set; }
@@ -123,7 +129,6 @@ public class RealTimeVehicleStatusSummaryDto
     public string LastUpdate { get; set; } = string.Empty;
     public string LastStopTime { get; set; } = string.Empty;
     public bool IsRunning { get; set; }
-    public bool IsInReverse { get; set; }
 }
 
 /// <summary>
@@ -145,8 +150,8 @@ public class DailyStatisticsSummaryDto
     public string DisplayName { get; set; } = string.Empty;
     public string GpsMileage { get; set; } = string.Empty;
     public string RunTime { get; set; } = string.Empty;
-    public int StopCount { get; set; }
-    public int IdleCount { get; set; }
+    public int EngineOffCount { get; set; }
+    public int VehicleStopCount { get; set; }
     public int OverSpeed { get; set; }
     public string MaxSpeed { get; set; } = string.Empty;
     public string IdleTime { get; set; } = string.Empty;

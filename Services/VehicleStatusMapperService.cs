@@ -103,8 +103,8 @@ public class VehicleStatusMapperService
             } : null,
             DailyStats = new RealTimeDailyStatsDto
             {
-                StopCount = vehicle.Daily?.StopCount ?? 0,
-                IdleCount = vehicle.Daily?.IdleCount ?? 0,
+                EngineOffCount = vehicle.Daily?.StopCount ?? 0,  // Engine off count
+                VehicleStopCount = vehicle.Daily?.IdleCount ?? 0,  // Vehicle stopped count
                 TotalDistance = vehicle.Daily?.GpsMileage ?? 0,
                 RunTime = vehicle.Daily?.RunTime ?? 0,
                 IdleTime = vehicle.Daily?.IdleTime ?? 0,
@@ -171,8 +171,8 @@ public class VehicleStatusMapperService
             DisplayName = OutputSanitizer.Sanitize(vehicle.CustomPlateNumber),
             GpsMileage = vehicle.Daily != null ? $"{vehicle.Daily.GpsMileage / 1000.0:F2} km" : "0.00 km",
             RunTime = vehicle.Daily != null ? TimeSpan.FromSeconds(vehicle.Daily.RunTime).ToString(@"hh\:mm\:ss") : "00:00:00",
-            StopCount = vehicle.Daily?.StopCount ?? 0,
-            IdleCount = vehicle.Daily?.IdleCount ?? 0,
+            EngineOffCount = vehicle.Daily?.StopCount ?? 0,  // Engine off count
+            VehicleStopCount = vehicle.Daily?.IdleCount ?? 0,  // Vehicle stopped count
             OverSpeed = vehicle.Daily?.OverSpeed ?? 0,
             MaxSpeed = vehicle.Daily != null ? $"{vehicle.Daily.MaxSpeed / 100.0:F1} km/h" : "0.0 km/h",
             IdleTime = vehicle.Daily != null ? TimeSpan.FromSeconds(vehicle.Daily.IdleTime).ToString(@"hh\:mm\:ss") : "00:00:00",

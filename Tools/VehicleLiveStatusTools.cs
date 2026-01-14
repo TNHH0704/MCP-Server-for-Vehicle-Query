@@ -272,10 +272,11 @@ public class VehicleLiveStatusTools
                 plate = v.Plate,
                 displayName = v.CustomPlateNumber,
                 gpsMileage = $"{(v.Daily?.GpsMileage ?? 0) / 1000.0:F2} km",
-                runTime = $"{TimeSpan.FromSeconds(v.Daily?.RunTime ?? 0).TotalHours:F2} hours",
+                runTime = FormatRunTime(v.Daily?.RunTime ?? 0),
                 maxSpeed = $"{(v.Daily?.MaxSpeed ?? 0) / 100.0:F1} km/h",
                 overSpeedCount = v.Daily?.OverSpeed ?? 0,
-                stopCount = v.Daily?.StopCount ?? 0
+                engineOffCount = v.Daily?.StopCount ?? 0,  // Engine off count
+                vehicleStopCount = v.Daily?.IdleCount ?? 0   // Vehicle stopped count
             }).ToList();
 
             return System.Text.Json.JsonSerializer.Serialize(dailyStatus, new System.Text.Json.JsonSerializerOptions 
@@ -307,10 +308,11 @@ public class VehicleLiveStatusTools
                 plate = vehicle.Plate,
                 displayName = vehicle.CustomPlateNumber,
                 gpsMileage = $"{(vehicle.Daily?.GpsMileage ?? 0) / 1000.0:F2} km",
-                runTime = $"{TimeSpan.FromSeconds(vehicle.Daily?.RunTime ?? 0).TotalHours:F2} hours",
+                runTime = FormatRunTime(vehicle.Daily?.RunTime ?? 0),
                 maxSpeed = $"{(vehicle.Daily?.MaxSpeed ?? 0) / 100.0:F1} km/h",
                 overSpeedCount = vehicle.Daily?.OverSpeed ?? 0,
-                stopCount = vehicle.Daily?.StopCount ?? 0
+                engineOffCount = vehicle.Daily?.StopCount ?? 0,  // Engine off count
+                vehicleStopCount = vehicle.Daily?.IdleCount ?? 0   // Vehicle stopped count
             };
 
             return System.Text.Json.JsonSerializer.Serialize(dailyStatus, new System.Text.Json.JsonSerializerOptions 
@@ -321,6 +323,19 @@ public class VehicleLiveStatusTools
         catch (Exception ex)
         {
             return System.Text.Json.JsonSerializer.Serialize(new { error = ex.Message });
+        }
+    }
+
+    private static string FormatRunTime(int totalSeconds)
+    {
+        var timeSpan = TimeSpan.FromSeconds(totalSeconds);
+        if (timeSpan.Hours > 0)
+        {
+            return timeSpan.ToString(@"hh\:mm\:ss");
+        }
+        else
+        {
+            return timeSpan.ToString(@"mm\:ss");
         }
     }
 }
