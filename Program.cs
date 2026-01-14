@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 var builder = WebApplication.CreateBuilder(args);
 
@@ -46,16 +47,34 @@ var app = builder.Build();
 // Enable CORS before other middleware
 app.UseCors();
 
-// Start background task to clean up rate limiter
-var cleanupTask = Task.Run(async () =>
+// Start background task to clean up rate limiter with proper error handling
+var cleanupCancellation = new CancellationTokenSource();
+_ = Task.Run(async () =>
 {
-    while (true)
+    while (!cleanupCancellation.Token.IsCancellationRequested)
     {
-        await Task.Delay(TimeSpan.FromHours(1));
-        McpVersionVer2.Security.RateLimiter.Cleanup();
-        Console.WriteLine($"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}] Rate limiter cleanup completed");
+        try
+        {
+            await Task.Delay(TimeSpan.FromHours(1), cleanupCancellation.Token);
+            McpVersionVer2.Security.RateLimiter.Cleanup();
+            Console.WriteLine($"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}] Rate limiter cleanup completed");
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected during shutdown
+            break;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}] Rate limiter cleanup failed: {ex.Message}");
+        }
     }
-});
+}, cleanupCancellation.Token);
+
+// Register cancellation on shutdown
+var lifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
+lifetime.ApplicationStopping.Register(() => cleanupCancellation.Cancel());
+
 
 // Map MCP endpoints with optional path prefix
 app.MapMcp("/sse");

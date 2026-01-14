@@ -7,6 +7,11 @@ namespace McpVersionVer2.Services;
 /// </summary>
 public class VehicleMapperService
 {
+    // Conversion constants
+    private const double SPEED_DIVISOR = 100.0;
+    private const double DISTANCE_DIVISOR = 1000.0;
+    private const double GPS_COORDINATE_DIVISOR = 1_000_000.0;
+
     /// <summary>
     /// Maps a raw VehicleResponse to a processed VehicleDto
     /// </summary>
@@ -73,8 +78,7 @@ public class VehicleMapperService
             Plate = vehicle.Plate,
             DisplayName = ProcessDisplayName(vehicle.CustomPlateNumber, vehicle.Plate),
             Status = vehicle.RawStatus?.StatusName ?? "Unknown",
-            // Convert speed from raw value (divide by 100 to get km/h)
-            Speed = vehicle.RawStatus?.Speed / 100 ?? 0,
+            Speed = (int)((vehicle.RawStatus?.Speed ?? 0) / SPEED_DIVISOR),
             Company = vehicle.CompanyName,
             IsActive = vehicle.IsActive,
             LastUpdated = vehicle.UpdatedAt.ToString("dd-MM-yyyy HH:mm:ss")
@@ -103,7 +107,7 @@ public class VehicleMapperService
             vehicleTypeName = v.VehicleTypeName,
             vehicleGroupName = v.VehicleGroupName,
             simPhone = v.SimPhone,
-            maxSpeed = v.MaxSpeed / 100, // Convert to km/h
+            maxSpeed = v.MaxSpeed / SPEED_DIVISOR,
             description = v.Description,
             activeDate = v.ActiveDate,
             updatedAt = v.UpdatedAt
@@ -140,9 +144,9 @@ public class VehicleMapperService
             .ToDictionary(g => g.Key, g => g.Count());
 
         // Calculate special conditions
-        // Convert speeds (divide by 100) for comparison
-        stats.VehiclesOverSpeed = vehicles.Count(v => 
-            v.RawStatus != null && (v.RawStatus.Speed / 100) > (v.MaxSpeed / 100));
+        // Convert speeds for comparison
+        stats.VehiclesOverSpeed = vehicles.Count(v =>
+            v.RawStatus != null && (v.RawStatus.Speed / SPEED_DIVISOR) > (v.MaxSpeed / SPEED_DIVISOR));
 
         stats.VehiclesWithExpiredInsurance = vehicles.Count(v =>
             v.ExpiredInsuranceDate.HasValue && v.ExpiredInsuranceDate.Value < DateTime.UtcNow);
@@ -157,7 +161,7 @@ public class VehicleMapperService
     /// Creates a search result DTO
     /// </summary>
     public VehicleSearchResultDto CreateSearchResult(
-        List<VehicleResponse> vehicles, 
+        List<VehicleResponse> vehicles,
         string searchCriteria)
     {
         return new VehicleSearchResultDto
@@ -175,8 +179,6 @@ public class VehicleMapperService
         if (string.IsNullOrWhiteSpace(customPlate))
             return regularPlate;
 
-        // Remove emojis for cleaner display, but keep the meaningful text
-        // This is a simple approach - you can enhance this based on your needs
         return customPlate;
     }
 
@@ -184,8 +186,8 @@ public class VehicleMapperService
     {
         var status = new VehicleStatusDto
         {
-            // Convert maxSpeed from raw value (divide by 100 to get km/h)
-            MaxSpeed = vehicle.MaxSpeed / 100
+            // Convert maxSpeed from raw value to km/h
+            MaxSpeed = (int)(vehicle.MaxSpeed / SPEED_DIVISOR)
         };
 
         if (vehicle.RawStatus != null)
@@ -193,8 +195,8 @@ public class VehicleMapperService
             status.StatusName = vehicle.RawStatus.StatusName;
             status.StatusColor = vehicle.RawStatus.StatusColor;
             status.StatusCode = vehicle.RawStatus.Status;
-            // Convert speed from raw value (divide by 100 to get km/h)
-            status.CurrentSpeed = vehicle.RawStatus.Speed / 100;
+            // Convert speed from raw value to km/h
+            status.CurrentSpeed = (int)(vehicle.RawStatus.Speed / SPEED_DIVISOR);
             status.IsOverSpeed = status.CurrentSpeed > status.MaxSpeed;
 
             // Generate human-readable speed description
@@ -227,15 +229,15 @@ public class VehicleMapperService
             return location;
         }
 
-        // Convert from raw coordinates (multiply by 1e-6 to get degrees)
-        location.Latitude = rawStatus.Y / 1_000_000.0;
-        location.Longitude = rawStatus.X / 1_000_000.0;
+        // Convert from raw coordinates to degrees
+        location.Latitude = rawStatus.Y / GPS_COORDINATE_DIVISOR;
+        location.Longitude = rawStatus.X / GPS_COORDINATE_DIVISOR;
         location.GpsColor = rawStatus.GpsColor;
         location.HasValidGps = rawStatus.X != 0 && rawStatus.Y != 0;
-        
+
         // Use address from Info field if available, otherwise fall back to coordinates
-        location.Address = !string.IsNullOrEmpty(rawStatus.Info) 
-            ? rawStatus.Info 
+        location.Address = !string.IsNullOrEmpty(rawStatus.Info)
+            ? rawStatus.Info
             : "Unknown location";
 
         // Format coordinates for display
