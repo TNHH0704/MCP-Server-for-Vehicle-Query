@@ -166,7 +166,7 @@ public class VehicleHistoryService
 
             summaries.Add(new WaypointSummary
             {
-                Timestamp = ConvertGpsTimeToDateTime(w.GpsTime).ToString("yyyy-MM-dd HH:mm:ss"),
+                Timestamp = ConvertGpsTimeToDateTime(w.GpsTime).ToString("dd-MM-yyyy HH:mm:ss"),
                 RawGpsTime = w.GpsTime,
                 Latitude = RoundTo6Decimals(w.Y / 1000000.0),
                 Longitude = RoundTo6Decimals(w.X / 1000000.0),
@@ -305,7 +305,7 @@ public class VehicleHistoryService
         var endTime = startTime.AddDays(1).AddSeconds(-1);
 
         var result = await GetVehicleHistoryAsync(bearerToken, vehicleId, startTime, endTime);
-        result.Date = date.ToString("yyyy-MM-dd");
+        result.Date = date.ToString("dd-MM-yyyy");
         return result;
     }
 
@@ -350,8 +350,8 @@ public class VehicleHistoryService
         return new VehicleTripSummary
         {
             VehicleId = vehicleId,
-            StartTime = ConvertGpsTimeToDateTime(firstWaypoint.GpsTime).ToString("yyyy-MM-dd HH:mm:ss"),
-            EndTime = ConvertGpsTimeToDateTime(lastWaypoint.GpsTime).ToString("yyyy-MM-dd HH:mm:ss"),
+            StartTime = ConvertGpsTimeToDateTime(firstWaypoint.GpsTime).ToString("dd-MM-yyyy HH:mm:ss"),
+            EndTime = ConvertGpsTimeToDateTime(lastWaypoint.GpsTime).ToString("dd-MM-yyyy HH:mm:ss"),
             TotalDistanceKm = Math.Round(totalGpsDistance, 3),
             TotalGpsDistanceKm = Math.Round((lastWaypoint.GpsMile - firstWaypoint.GpsMile) / DISTANCE_DIVISOR, 2),
             DurationHours = Math.Round(durationSeconds / 3600.0, 2),

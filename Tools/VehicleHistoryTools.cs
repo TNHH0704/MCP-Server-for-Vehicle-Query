@@ -147,7 +147,7 @@ public class VehicleHistoryTools
     public async Task<string> GetVehicleHistoryByDate(
         [Description("Bearer token for authentication")] string bearerToken,
         [Description("Vehicle ID")] string vehicleId,
-        [Description("Date in format 'yyyy-MM-dd' (e.g., '2026-01-07')")] string date)
+        [Description("Date in format 'dd-MM-yyyy' (e.g., '07-01-2026')")] string date)
     {
         try
         {
@@ -158,9 +158,9 @@ public class VehicleHistoryTools
                 return OutputSanitizer.CreateErrorResponse("This tool is ONLY for vehicle tracking queries. " + errorMessage, "OFF_TOPIC");
             }
 
-            if (!DateTime.TryParse(date, out var targetDate))
+            if (!DateTime.TryParseExact(date, "dd-MM-yyyy", null, System.Globalization.DateTimeStyles.None, out var targetDate))
             {
-                return System.Text.Json.JsonSerializer.Serialize(new { error = "Invalid date format. Use 'yyyy-MM-dd' (e.g., '2026-01-07')" });
+                return System.Text.Json.JsonSerializer.Serialize(new { error = "Invalid date format. Use 'dd-MM-yyyy' (e.g., '07-01-2026')" });
             }
 
             var result = await _historyService.GetVehicleHistoryByDateAsync(bearerToken, vehicleId, targetDate);

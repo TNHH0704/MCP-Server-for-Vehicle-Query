@@ -7,7 +7,11 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Configure logging
 builder.Logging.ClearProviders();
-builder.Logging.AddConsole();
+builder.Logging.AddConsole(options =>
+{
+    // CRITICAL: Force all logs to stderr so they don't interfere with StdIO MCP transport on stdout
+    options.LogToStandardErrorThreshold = LogLevel.Trace;
+});
 builder.Logging.SetMinimumLevel(LogLevel.Debug);
 
 // Configure to listen on all interfaces
@@ -37,6 +41,9 @@ builder.Services.AddScoped<McpVersionVer2.Services.VehicleStatusMapperService>()
 builder.Services.AddHttpClient<McpVersionVer2.Services.WaypointService>();
 builder.Services.AddScoped<McpVersionVer2.Services.VehicleHistoryService>();
 
+// Register authentication services
+builder.Services.AddHttpClient<McpVersionVer2.Services.AuthService>();
+
 builder.Services.AddMcpServer()
     .WithHttpTransport()
     .WithToolsFromAssembly(typeof(Program).Assembly)
@@ -57,7 +64,7 @@ _ = Task.Run(async () =>
         {
             await Task.Delay(TimeSpan.FromHours(1), cleanupCancellation.Token);
             McpVersionVer2.Security.RateLimiter.Cleanup();
-            Console.WriteLine($"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}] Rate limiter cleanup completed");
+            Console.Error.WriteLine($"[{DateTime.UtcNow:dd-MM-yyyy HH:mm:ss}] Rate limiter cleanup completed");
         }
         catch (OperationCanceledException)
         {
@@ -66,7 +73,7 @@ _ = Task.Run(async () =>
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}] Rate limiter cleanup failed: {ex.Message}");
+            Console.Error.WriteLine($"[{DateTime.UtcNow:dd-MM-yyyy HH:mm:ss}] Rate limiter cleanup failed: {ex.Message}");
         }
     }
 }, cleanupCancellation.Token);
