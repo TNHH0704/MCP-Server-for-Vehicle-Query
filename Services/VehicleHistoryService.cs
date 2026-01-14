@@ -64,11 +64,11 @@ public class VehicleHistoryService
     }
 
     /// <summary>
-    /// Truncate a number to 3 decimal places (ignore digits after 3rd decimal)
+    /// Round a number to 3 decimal places
     /// </summary>
-    private static double TruncateTo3Decimals(double value)
+    private static double RoundTo3Decimals(double value)
     {
-        return Math.Truncate(value * 1000) / 1000;
+        return Math.Round(value, 3);
     }
 
     /// <summary>
@@ -149,11 +149,11 @@ public class VehicleHistoryService
                 // Calculate distance between all waypoints without filtering
                 var distance = CalculateDistanceKm(lat1, lon1, lat2, lon2);
                 
-                // Truncate each segment distance before accumulating
-                var truncatedDistance = TruncateTo3Decimals(distance);
-                cumulativeDistance += truncatedDistance;
-                // Truncate cumulative value to avoid floating-point precision issues
-                cumulativeDistance = TruncateTo3Decimals(cumulativeDistance);
+                // Round each segment distance before accumulating
+                var roundedDistance = RoundTo3Decimals(distance);
+                cumulativeDistance += roundedDistance;
+                // Round cumulative value to avoid floating-point precision issues
+                cumulativeDistance = RoundTo3Decimals(cumulativeDistance);
             }
 
             summaries.Add(new WaypointSummary
