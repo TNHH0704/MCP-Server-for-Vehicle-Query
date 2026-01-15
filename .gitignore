@@ -89,6 +89,7 @@ ScaffoldingReadMe.txt
 .env
 .env.local
 .env.*.local
+appsettings.json
 appsettings.Development.json
 appsettings.local.json
 secrets.json

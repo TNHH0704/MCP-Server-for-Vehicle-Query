@@ -16,4 +16,11 @@
     <PackageReference Include="protobuf-net" Version="1.0.0.280" />
   </ItemGroup>
 
+  <PropertyGroup>
+    <EnableSdkContainerSupport>true</EnableSdkContainerSupport>
+    <ContainerRepository>chernakoshka/mcpver2</ContainerRepository>
+    <ContainerFamily>alpine</ContainerFamily>
+    <RuntimeIdentifier>linux-x64;linux-arm64</RuntimeIdentifier>
+  <PropertyGroup>
+
 </Project>
