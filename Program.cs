@@ -84,6 +84,6 @@ lifetime.ApplicationStopping.Register(() => cleanupCancellation.Cancel());
 
 
 // Map MCP endpoints with optional path prefix
-app.MapMcp("/sse");
+app.MapMcp("/mcp");
 
 await app.RunAsync();

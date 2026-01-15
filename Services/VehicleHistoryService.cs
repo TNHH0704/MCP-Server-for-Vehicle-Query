@@ -52,21 +52,9 @@ public class VehicleHistoryService
     /// </summary>
     private static double CalculateDistanceKm(double lat1, double lon1, double lat2, double lon2)
     {
-        const double R = 6371; // Earth's radius in kilometers
-        var dLat = ToRadians(lat2 - lat1);
-        var dLon = ToRadians(lon2 - lon1);
-
-        var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
-                Math.Cos(ToRadians(lat1)) * Math.Cos(ToRadians(lat2)) *
-                Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
-
-        var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
-        return R * c;
-    }
-
-    private static double ToRadians(double degrees)
-    {
-        return degrees * Math.PI / 180.0;
+        // Use GisUtil.GetDistance which returns distance in meters, then convert to kilometers
+        int distanceInMeters = GisUtil.GetDistance(lon1, lat1, lon2, lat2);
+        return distanceInMeters / 1000.0;
     }
 
     /// <summary>
@@ -347,6 +335,13 @@ public class VehicleHistoryService
         // Keep moving waypoints for max speed (only consider periods of movement)
         var movingSpeeds = movingWaypoints.Select(w => w.Speed / SPEED_DIVISOR).ToList();
 
+        // Calculate stop time using the same method as GetVehicleHistory
+        var (_, stopTimeSeconds, _) = CalculateRunningAndStopTime(orderedWaypoints);
+        var amountOfTimeStop = Math.Round(stopTimeSeconds / 3600.0, 2); // Convert to hours
+
+        // Use the same stop counting logic as GetVehicleHistory (minimum 2 minutes)
+        var (_, _, stopCountFromHistory) = CalculateRunningAndStopTime(orderedWaypoints);
+
         return new VehicleTripSummary
         {
             VehicleId = vehicleId,
@@ -357,9 +352,10 @@ public class VehicleHistoryService
             DurationHours = Math.Round(durationSeconds / 3600.0, 2),
             AverageSpeedKmh = Math.Round(allSpeeds.Average(), 2), // Use all waypoints for average speed
             MaxSpeedKmh = Math.Round(movingSpeeds.Max(), 2), // Use moving waypoints for max speed
-            StopCount = CountStops(orderedWaypoints),
+            StopCount = stopCountFromHistory, // Use same stop counting logic as GetVehicleHistory
             TotalWaypoints = waypoints.Count,
             MovingWaypoints = movingWaypoints.Count,
+            AmountOfTimeStop = amountOfTimeStop, // Add stop time in hours
             StartLatitude = RoundTo6Decimals(firstWaypoint.Y / GPS_COORDINATE_DIVISOR),
             StartLongitude = RoundTo6Decimals(firstWaypoint.X / GPS_COORDINATE_DIVISOR),
             EndLatitude = RoundTo6Decimals(lastWaypoint.Y / GPS_COORDINATE_DIVISOR),
@@ -545,6 +541,7 @@ public class VehicleTripSummary
     public int StopCount { get; set; }
     public int TotalWaypoints { get; set; }
     public int MovingWaypoints { get; set; }
+    public double AmountOfTimeStop { get; set; } // Time spent stopped in hours
     public double StartLatitude { get; set; }
     public double StartLongitude { get; set; }
     public double EndLatitude { get; set; }

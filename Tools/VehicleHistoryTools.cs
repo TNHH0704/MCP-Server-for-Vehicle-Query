@@ -219,6 +219,7 @@ public class VehicleHistoryTools
                     averageSpeedKmh = summary.AverageSpeedKmh,
                     maxSpeedKmh = summary.MaxSpeedKmh,
                     stopCount = summary.StopCount,
+                    amountOfTimeStop = summary.AmountOfTimeStop,
                     totalWaypoints = summary.TotalWaypoints,
                     movingWaypoints = summary.MovingWaypoints
                 },
