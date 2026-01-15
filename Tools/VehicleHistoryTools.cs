@@ -79,7 +79,26 @@ public class VehicleHistoryTools
                 return System.Text.Json.JsonSerializer.Serialize(new { message = $"No waypoints found for vehicle {vehicleId} in the specified time range." });
             }
 
-            return System.Text.Json.JsonSerializer.Serialize(result, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            return System.Text.Json.JsonSerializer.Serialize(new
+            {
+                vehicleId = result.VehicleId,
+                startTime = result.StartTime,
+                endTime = result.EndTime,
+                hoursBack = result.HoursBack,
+                date = result.Date,
+                summary = new
+                {
+                    totalWaypoints = result.TotalWaypoints,
+                    movingWaypoints = result.MovingWaypoints,
+                    totalDistanceKm = result.TotalDistanceKm,
+                    totalRunningTimeHours = result.TotalRunningTimeHours,
+                    totalStopTimeHours = result.TotalStopTimeHours,
+                    averageSpeedKmh = result.AverageSpeedKmh,
+                    highestSpeedKmh = result.HighestSpeedKmh,
+                    stopCount = result.AmountOfTimeStop
+                },
+                waypoints = result.Waypoints
+            }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
         }
         catch (Exception ex)
         {
@@ -135,7 +154,26 @@ public class VehicleHistoryTools
                 return System.Text.Json.JsonSerializer.Serialize(new { message = $"No waypoints found for vehicle {vehicleId} in the last {hours} hours." });
             }
 
-            return System.Text.Json.JsonSerializer.Serialize(result, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            return System.Text.Json.JsonSerializer.Serialize(new
+            {
+                vehicleId = result.VehicleId,
+                startTime = result.StartTime,
+                endTime = result.EndTime,
+                hoursBack = result.HoursBack,
+                date = result.Date,
+                summary = new
+                {
+                    totalWaypoints = result.TotalWaypoints,
+                    movingWaypoints = result.MovingWaypoints,
+                    totalDistanceKm = result.TotalDistanceKm,
+                    totalRunningTime = TimeSpan.FromHours(result.TotalRunningTimeHours).ToString(@"hh\:mm\:ss"),
+                    totalStopTime = TimeSpan.FromHours(result.TotalStopTimeHours).ToString(@"hh\:mm\:ss"),
+                    averageSpeedKmh = result.AverageSpeedKmh,
+                    highestSpeedKmh = result.HighestSpeedKmh,
+                    stopCount = result.AmountOfTimeStop
+                },
+                waypoints = result.Waypoints
+            }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
         }
         catch (Exception ex)
         {
@@ -170,7 +208,26 @@ public class VehicleHistoryTools
                 return System.Text.Json.JsonSerializer.Serialize(new { message = $"No waypoints found for vehicle {vehicleId} on {date}." });
             }
 
-            return System.Text.Json.JsonSerializer.Serialize(result, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            return System.Text.Json.JsonSerializer.Serialize(new
+            {
+                vehicleId = result.VehicleId,
+                startTime = result.StartTime,
+                endTime = result.EndTime,
+                hoursBack = result.HoursBack,
+                date = result.Date,
+                summary = new
+                {
+                    totalWaypoints = result.TotalWaypoints,
+                    movingWaypoints = result.MovingWaypoints,
+                    totalDistanceKm = result.TotalDistanceKm,
+                    totalRunningTime = TimeSpan.FromHours(result.TotalRunningTimeHours).ToString(@"hh\:mm\:ss"),
+                    totalStopTime = TimeSpan.FromHours(result.TotalStopTimeHours).ToString(@"hh\:mm\:ss"),
+                    averageSpeedKmh = result.AverageSpeedKmh,
+                    highestSpeedKmh = result.HighestSpeedKmh,
+                    stopCount = result.AmountOfTimeStop
+                },
+                waypoints = result.Waypoints
+            }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
         }
         catch (Exception ex)
         {
@@ -214,23 +271,26 @@ public class VehicleHistoryTools
                 statistics = new
                 {
                     totalDistanceKm = summary.TotalDistanceKm,
-                    durationHours = summary.DurationHours,
+                    duration = summary.DurationHours,
                     averageSpeedKmh = summary.AverageSpeedKmh,
                     maxSpeedKmh = summary.MaxSpeedKmh,
                     stopCount = summary.StopCount,
-                    amountOfTimeStop = summary.AmountOfTimeStop,
+                    runningTime = TimeSpan.FromHours(summary.AmountOfTimeRunning).ToString(@"hh\:mm\:ss"),
+                    stopTime = TimeSpan.FromHours(summary.AmountOfTimeStop).ToString(@"hh\:mm\:ss"),
                     totalWaypoints = summary.TotalWaypoints,
                     movingWaypoints = summary.MovingWaypoints
                 },
                 startLocation = new
                 {
                     latitude = summary.StartLatitude,
-                    longitude = summary.StartLongitude
+                    longitude = summary.StartLongitude,
+                    info = summary.StartInfo
                 },
                 endLocation = new
                 {
                     latitude = summary.EndLatitude,
-                    longitude = summary.EndLongitude
+                    longitude = summary.EndLongitude,
+                    info = summary.EndInfo
                 }
             }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
         }
@@ -289,7 +349,26 @@ public class VehicleHistoryTools
                 return System.Text.Json.JsonSerializer.Serialize(new { message = $"No waypoints found for vehicle with plate '{plate}'." });
             }
 
-            return System.Text.Json.JsonSerializer.Serialize(result, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            return System.Text.Json.JsonSerializer.Serialize(new
+            {
+                vehicleId = result.VehicleId,
+                startTime = result.StartTime,
+                endTime = result.EndTime,
+                hoursBack = result.HoursBack,
+                date = result.Date,
+                summary = new
+                {
+                    totalWaypoints = result.TotalWaypoints,
+                    movingWaypoints = result.MovingWaypoints,
+                    totalDistanceKm = result.TotalDistanceKm,
+                    totalRunningTime = TimeSpan.FromHours(result.TotalRunningTimeHours).ToString(@"hh\:mm\:ss"),
+                    totalStopTime = TimeSpan.FromHours(result.TotalStopTimeHours).ToString(@"hh\:mm\:ss"),
+                    averageSpeedKmh = result.AverageSpeedKmh,
+                    highestSpeedKmh = result.HighestSpeedKmh,
+                    stopCount = result.AmountOfTimeStop
+                },
+                waypoints = result.Waypoints
+            }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
         }
         catch (Exception ex)
         {
