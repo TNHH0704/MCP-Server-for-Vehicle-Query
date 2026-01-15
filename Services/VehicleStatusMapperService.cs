@@ -47,8 +47,18 @@ public class VehicleStatusMapperService
     {
         var (lat, lon) = ConvertCoordinates(vehicle.X, vehicle.Y);
         
-        // Determine status based on speed: if speed > 0, vehicle is running, otherwise stopped
-        string statusName = vehicle.Speed > 0 ? "Running" : "Stop";
+        // Determine status based on speed and GPS signal
+        string statusName;
+        if (vehicle.Speed > 0 && vehicle.Status == 0)
+        {
+            // Vehicle is moving but GPS is off - lost signal
+            statusName = "Lost Signal";
+        }
+        else
+        {
+            // Normal status based on speed
+            statusName = vehicle.Speed > 0 ? "Running" : "Stop";
+        }
 
         return new RealTimeVehicleStatusDto
         {
@@ -81,7 +91,7 @@ public class VehicleStatusMapperService
                 StatusName = statusName,
                 StopOrIdleTime = vehicle.StopOrIdleTime,
                 Input = vehicle.Input,
-                IsRunning = vehicle.Speed > 0
+                IsRunning = vehicle.Speed > 0 && vehicle.Status == 1 // Only running if moving AND GPS is working
             },
             Device = new RealTimeDeviceDto
             {
@@ -134,8 +144,18 @@ public class VehicleStatusMapperService
     /// </summary>
     public RealTimeVehicleStatusSummaryDto MapToSummary(VehicleStatus vehicle)
     {
-        // Determine status based on speed: if speed > 0, vehicle is running, otherwise stopped
-        string status = vehicle.Speed > 0 ? "Running" : "Stop";
+        // Determine status based on speed and GPS signal
+        string status;
+        if (vehicle.Speed > 0 && vehicle.Status == 0)
+        {
+            // Vehicle is moving but GPS is off - lost signal
+            status = "Lost Signal";
+        }
+        else
+        {
+            // Normal status based on speed
+            status = vehicle.Speed > 0 ? "Running" : "Stop";
+        }
         
         return new RealTimeVehicleStatusSummaryDto
         {
@@ -148,7 +168,7 @@ public class VehicleStatusMapperService
             Location = OutputSanitizer.Sanitize(string.IsNullOrEmpty(vehicle.Info) ? "Unknown" : vehicle.Info),
             LastUpdate = UnixToDateTime(vehicle.GpsTime).ToString("dd-MM-yyyy HH:mm:ss"),
             LastStopTime = UnixToDateTime(vehicle.LastUpdateTime).ToString("dd-MM-yyyy HH:mm:ss"),
-            IsRunning = vehicle.Speed > 0
+            IsRunning = vehicle.Speed > 0 && vehicle.Status == 1
         };
     }
 
