@@ -348,7 +348,6 @@ public class VehicleHistoryService
             StartTime = ConvertGpsTimeToDateTime(firstWaypoint.GpsTime).ToString("dd-MM-yyyy HH:mm:ss"),
             EndTime = ConvertGpsTimeToDateTime(lastWaypoint.GpsTime).ToString("dd-MM-yyyy HH:mm:ss"),
             TotalDistanceKm = Math.Round(totalGpsDistance, 3),
-            TotalGpsDistanceKm = Math.Round((lastWaypoint.GpsMile - firstWaypoint.GpsMile) / DISTANCE_DIVISOR, 2),
             DurationHours = Math.Round(durationSeconds / 3600.0, 2),
             AverageSpeedKmh = Math.Round(allSpeeds.Average(), 2), // Use all waypoints for average speed
             MaxSpeedKmh = Math.Round(movingSpeeds.Max(), 2), // Use moving waypoints for max speed
@@ -534,7 +533,6 @@ public class VehicleTripSummary
     public string StartTime { get; set; } = "";
     public string EndTime { get; set; } = "";
     public double TotalDistanceKm { get; set; }
-    public double TotalGpsDistanceKm { get; set; }
     public double DurationHours { get; set; }
     public double AverageSpeedKmh { get; set; }
     public double MaxSpeedKmh { get; set; }

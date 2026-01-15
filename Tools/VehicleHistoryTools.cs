@@ -214,7 +214,6 @@ public class VehicleHistoryTools
                 statistics = new
                 {
                     totalDistanceKm = summary.TotalDistanceKm,
-                    totalGpsDistanceKm = summary.TotalGpsDistanceKm,
                     durationHours = summary.DurationHours,
                     averageSpeedKmh = summary.AverageSpeedKmh,
                     maxSpeedKmh = summary.MaxSpeedKmh,
