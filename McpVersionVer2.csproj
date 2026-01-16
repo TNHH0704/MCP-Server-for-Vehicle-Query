@@ -2,25 +2,19 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Http" Version="2.3.9" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.1" />
-    <PackageReference Include="ModelContextProtocol" Version="0.5.0-preview.1" />
-    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="0.5.0-preview.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.0" />
+    <PackageReference Include="ModelContextProtocol" Version="0.6.0-preview.1" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.5-beta1" />
     <PackageReference Include="protobuf-net" Version="1.0.0.280" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc" Version="2.3.9" />
   </ItemGroup>
-
-  <PropertyGroup>
-    <EnableSdkContainerSupport>true</EnableSdkContainerSupport>
-    <ContainerRepository>chernakoshka/mcpver2</ContainerRepository>
-    <ContainerFamily>alpine</ContainerFamily>
-    <RuntimeIdentifier>linux-x64;linux-arm64</RuntimeIdentifier>
-  <PropertyGroup>
 
 </Project>

@@ -115,3 +115,5 @@ PublishProfiles/
 
 # Application-specific (optional - uncomment if needed)
 # TEST_PROMPTS.md
+Dockerfile
+.gitignore

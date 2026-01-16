@@ -19,8 +19,9 @@ public class VehicleService
     {
         _httpClient = httpClient;
         _logger = logger;
-        _vehiclesByUserUrl = configuration["ApiSettings:VehicleApiUrl"] 
-            ?? throw new InvalidOperationException("VehicleApiUrl not configured");
+        _vehiclesByUserUrl = configuration["ApiSettings:VehicleApiUrl"]
+            ?? configuration["VEHICLE_API_URL"]
+            ?? throw new InvalidOperationException("VehicleApiUrl not configured. Set VEHICLE_API_URL environment variable.");
     }
 
     public async Task<List<VehicleResponse>> GetVehiclesAsync(string bearerToken, bool forceRefresh = false)

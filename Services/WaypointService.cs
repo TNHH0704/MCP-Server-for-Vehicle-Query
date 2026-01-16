@@ -18,8 +18,9 @@ public class WaypointService
     {
         _httpClient = httpClient;
         _logger = logger;
-        _waypointApiUrl = configuration["ApiSettings:WaypointApiUrl"] 
-            ?? throw new InvalidOperationException("WaypointApiUrl not configured");
+        _waypointApiUrl = configuration["ApiSettings:WaypointApiUrl"]
+            ?? configuration["WAYPOINT_API_URL"]
+            ?? throw new InvalidOperationException("WaypointApiUrl not configured. Set WAYPOINT_API_URL environment variable.");
     }
 
     /// <summary>

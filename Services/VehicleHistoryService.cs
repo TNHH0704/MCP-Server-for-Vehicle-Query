@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+
 
 namespace McpVersionVer2.Services;
 
@@ -13,19 +13,16 @@ public class VehicleHistoryService
 
     private readonly WaypointService _waypointService;
     private readonly VehicleService _vehicleService;
-    private readonly ILogger<VehicleHistoryService> _logger;
 
     // GPS tracking systems use 2010-01-01 as epoch (not Unix epoch 1970-01-01)
     private static readonly DateTime GpsEpoch = new DateTime(2010, 1, 1, 0, 0, 0, DateTimeKind.Local);
 
     public VehicleHistoryService(
         WaypointService waypointService,
-        VehicleService vehicleService,
-        ILogger<VehicleHistoryService> logger)
+        VehicleService vehicleService)
     {
         _waypointService = waypointService;
         _vehicleService = vehicleService;
-        _logger = logger;
     }
 
     /// <summary>

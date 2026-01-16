@@ -14,8 +14,9 @@ public class VehicleStatusService
     public VehicleStatusService(HttpClient httpClient, IConfiguration configuration)
     {
         _httpClient = httpClient;
-        _baseUrl = configuration["ApiSettings:VehicleStatusUrl"] 
-            ?? throw new InvalidOperationException("VehicleStatusUrl not configured");
+        _baseUrl = configuration["ApiSettings:VehicleStatusUrl"]
+            ?? configuration["VEHICLE_STATUS_URL"]
+            ?? throw new InvalidOperationException("VehicleStatusUrl not configured. Set VEHICLE_STATUS_URL environment variable.");
     }
 
     /// <summary>
