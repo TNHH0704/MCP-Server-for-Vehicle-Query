@@ -5,7 +5,10 @@ namespace McpVersionVer2.Services;
 
 public class VehicleStatusMapperService
 {
-    // Custom epoch: January 1, 2010 00:00:00
+    private const double SPEED_DIVISOR = 100.0;
+    private const double DISTANCE_DIVISOR = 1000.0;
+    private const double COORDINATE_DIVISOR = 10000.0;
+
     private static readonly DateTime CustomEpoch = new DateTime(2010, 1, 1, 0, 0, 0, DateTimeKind.Local);
 
     /// <summary>
@@ -31,13 +34,9 @@ public class VehicleStatusMapperService
         };
     }
 
-    /// <summary>
-    /// Convert coordinates from API format to decimal degrees
-    /// </summary>
     private (double lat, double lon) ConvertCoordinates(long x, long y)
     {
-        // API returns coordinates multiplied by 10000
-        return (y / 10000.0, x / 10000.0);
+        return (y / COORDINATE_DIVISOR, x / COORDINATE_DIVISOR);
     }
 
     /// <summary>
@@ -163,8 +162,8 @@ public class VehicleStatusMapperService
             DisplayName = OutputSanitizer.Sanitize(vehicle.CustomPlateNumber),
             Group = OutputSanitizer.Sanitize(vehicle.VehicleGroup?.Name ?? "N/A"),
             Status = status,
-            Speed = $"{vehicle.Speed / 100.0:F1} km/h",
-            MaxSpeed = $"{vehicle.MaxSpeed / 100.0:F1} km/h",
+            Speed = $"{vehicle.Speed / SPEED_DIVISOR:F1} km/h",
+            MaxSpeed = $"{vehicle.MaxSpeed / SPEED_DIVISOR:F1} km/h",
             Location = OutputSanitizer.Sanitize(string.IsNullOrEmpty(vehicle.Info) ? "Unknown" : vehicle.Info),
             LastUpdate = UnixToDateTime(vehicle.GpsTime).ToString("dd-MM-yyyy HH:mm:ss"),
             LastStopTime = UnixToDateTime(vehicle.LastUpdateTime).ToString("dd-MM-yyyy HH:mm:ss"),
@@ -189,12 +188,12 @@ public class VehicleStatusMapperService
         {
             Plate = OutputSanitizer.Sanitize(vehicle.Plate),
             DisplayName = OutputSanitizer.Sanitize(vehicle.CustomPlateNumber),
-            GpsMileage = vehicle.Daily != null ? $"{vehicle.Daily.GpsMileage / 1000.0:F2} km" : "0.00 km",
+            GpsMileage = vehicle.Daily != null ? $"{vehicle.Daily.GpsMileage / DISTANCE_DIVISOR:F2} km" : "0.00 km",
             RunTime = vehicle.Daily != null ? TimeSpan.FromSeconds(vehicle.Daily.RunTime).ToString(@"hh\:mm\:ss") : "00:00:00",
-            EngineOffCount = vehicle.Daily?.StopCount ?? 0,  // Engine off count
-            VehicleStopCount = vehicle.Daily?.IdleCount ?? 0,  // Vehicle stopped count
+            EngineOffCount = vehicle.Daily?.StopCount ?? 0,
+            VehicleStopCount = vehicle.Daily?.IdleCount ?? 0,
             OverSpeed = vehicle.Daily?.OverSpeed ?? 0,
-            MaxSpeed = vehicle.Daily != null ? $"{vehicle.Daily.MaxSpeed / 100.0:F1} km/h" : "0.0 km/h",
+            MaxSpeed = vehicle.Daily != null ? $"{vehicle.Daily.MaxSpeed / SPEED_DIVISOR:F1} km/h" : "0.0 km/h",
             IdleTime = vehicle.Daily != null ? TimeSpan.FromSeconds(vehicle.Daily.IdleTime).ToString(@"hh\:mm\:ss") : "00:00:00",
             StopTime = vehicle.Daily != null ? TimeSpan.FromSeconds(vehicle.Daily.StopTime).ToString(@"hh\:mm\:ss") : "00:00:00"
         };

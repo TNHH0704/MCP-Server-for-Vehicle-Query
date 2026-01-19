@@ -1,20 +1,22 @@
-
+using McpVersionVer2.Models;
 
 namespace McpVersionVer2.Services;
 
 public class VehicleHistoryService
 {
-    // Conversion constants
     private const double SPEED_DIVISOR = 100.0;
     private const double DISTANCE_DIVISOR = 1000.0;
     private const double GPS_COORDINATE_DIVISOR = 1_000_000.0;
+    private const double VOLTAGE_DIVISOR = 1000.0;
     private const int MIN_STOP_DURATION_SECONDS = 120;
-    private const double STOP_SPEED_THRESHOLD = 100.0; // Speed * 100 (100 = 1 km/h)
+    private const int SHORT_IDLE_THRESHOLD_SECONDS = 120;
+    private const int LONG_IDLE_THRESHOLD_SECONDS = 300;
+    private const int MAX_HOURS_LOOKBACK = 168;
+    private const double STOP_SPEED_THRESHOLD = 100.0;
 
     private readonly WaypointService _waypointService;
     private readonly VehicleService _vehicleService;
 
-    // GPS tracking systems use 2010-01-01 as epoch (not Unix epoch 1970-01-01)
     private static readonly DateTime GpsEpoch = new DateTime(2010, 1, 1, 0, 0, 0, DateTimeKind.Local);
 
     public VehicleHistoryService(
@@ -136,64 +138,54 @@ public class VehicleHistoryService
 
                 // Use GisUtil.GetDistance directly (returns meters as int, following its rounding)
                 int distanceInMeters = GisUtil.GetDistance(lon1, lat1, lon2, lat2);
-                
+
                 // Convert to kilometers and accumulate
-                double distanceKm = distanceInMeters / 1000.0;
+                double distanceKm = distanceInMeters / DISTANCE_DIVISOR;
                 cumulativeDistanceKm += distanceKm;
 
                 // Calculate time interval for status determination
                 double timeIntervalSeconds = w.GpsTime - prev.GpsTime;
                 if (timeIntervalSeconds > 0)
                 {
-                    if (prev.Speed == 0)  // Check if PREVIOUS waypoint had speed = 0
+                    if (prev.Speed == 0)
                     {
-                        // Accumulate consecutive idle time
                         consecutiveIdleSeconds += timeIntervalSeconds;
                     }
                     else
                     {
-                        // Speed > 0, check if we need to retroactively change idle period to running
-                        if (idleStartIndex >= 0 && consecutiveIdleSeconds <= 120) // 2 minutes
+                        if (idleStartIndex >= 0 && consecutiveIdleSeconds <= SHORT_IDLE_THRESHOLD_SECONDS)
                         {
-                            // Change all waypoints in the idle period from idleStartIndex to i-1 to "running"
                             for (int j = idleStartIndex; j < i; j++)
                             {
                                 summaries[j].VehicleStatus = "running";
                             }
                         }
-                        
-                        // Reset idle tracking
+
                         consecutiveIdleSeconds = 0;
                         idleStartIndex = -1;
                     }
                 }
             }
 
-            // Determine initial vehicle status
             string vehicleStatus;
             if (currentSpeed > 0)
             {
                 vehicleStatus = "running";
-                // Reset idle tracking when speed becomes positive
                 consecutiveIdleSeconds = 0;
                 idleStartIndex = -1;
             }
             else
             {
-                // Speed is 0, immediately set to idle
                 vehicleStatus = "idle";
-                
-                // Start tracking idle period if not already tracking
+
                 if (idleStartIndex == -1)
                 {
-                    idleStartIndex = summaries.Count; // This will be the index of current waypoint
+                    idleStartIndex = summaries.Count;
                 }
-                
-                // Check if idle time exceeds 5 minutes
-                if (consecutiveIdleSeconds > 300) // 5 minutes
+
+                if (consecutiveIdleSeconds > LONG_IDLE_THRESHOLD_SECONDS)
                 {
                     vehicleStatus = "stop";
-                    // Change all previous idle waypoints in this period to "stop"
                     if (idleStartIndex >= 0)
                     {
                         for (int j = idleStartIndex; j < summaries.Count; j++)
@@ -208,8 +200,8 @@ public class VehicleHistoryService
             {
                 Timestamp = ConvertGpsTimeToDateTime(w.GpsTime).ToString("dd-MM-yyyy HH:mm:ss"),
                 RawGpsTime = w.GpsTime,
-                Latitude = RoundTo6Decimals(w.Y / 1000000.0),
-                Longitude = RoundTo6Decimals(w.X / 1000000.0),
+                Latitude = RoundTo6Decimals(w.Y / GPS_COORDINATE_DIVISOR),
+                Longitude = RoundTo6Decimals(w.X / GPS_COORDINATE_DIVISOR),
                 Altitude = w.Z,
                 Speed = currentSpeed,
                 Heading = w.Heading,
@@ -219,7 +211,7 @@ public class VehicleHistoryService
                 CumulativeDistanceKm = RoundTo3Decimals(cumulativeDistanceKm),
                 EventId = w.EventId,
                 Status = w.Status,
-                Voltage = w.Voltage / 1000.0,
+                Voltage = w.Voltage / VOLTAGE_DIVISOR,
                 Battery = w.Battery,
                 DriverId = w.DriverId,
                 DriverCode = w.DriverCode,
@@ -231,23 +223,20 @@ public class VehicleHistoryService
         // Handle case where file ends with idle period
         if (idleStartIndex >= 0 && summaries.Count > 0)
         {
-            if (consecutiveIdleSeconds <= 120) // 2 minutes
+            if (consecutiveIdleSeconds <= SHORT_IDLE_THRESHOLD_SECONDS)
             {
-                // If the last idle period was <= 2 minutes, change it to running
                 for (int j = idleStartIndex; j < summaries.Count; j++)
                 {
                     summaries[j].VehicleStatus = "running";
                 }
             }
-            else if (consecutiveIdleSeconds > 300) // 5 minutes
+            else if (consecutiveIdleSeconds > LONG_IDLE_THRESHOLD_SECONDS)
             {
-                // If the last idle period was > 5 minutes, change it to stop
                 for (int j = idleStartIndex; j < summaries.Count; j++)
                 {
                     summaries[j].VehicleStatus = "stop";
                 }
             }
-            // If between 2-5 minutes, leave as idle
         }
 
         return summaries;
@@ -358,9 +347,9 @@ public class VehicleHistoryService
         string vehicleId,
         int hours)
     {
-        if (hours <= 0 || hours > 168) // Max 1 week
+        if (hours <= 0 || hours > MAX_HOURS_LOOKBACK)
         {
-            throw new ArgumentException("Hours must be between 1 and 168 (1 week)");
+            throw new ArgumentException($"Hours must be between 1 and {MAX_HOURS_LOOKBACK} (1 week)");
         }
 
         var endTime = DateTime.UtcNow;
@@ -496,34 +485,6 @@ public class VehicleHistoryService
     }
 
     /// <summary>
-    /// Count the number of stops in a trip (simple count, not duration-based)
-    /// </summary>
-    private static int CountStops(List<Waypoint> orderedWaypoints)
-    {
-
-        var stops = 0;
-        var inStop = false;
-
-        foreach (var waypoint in orderedWaypoints)
-        {
-            if (waypoint.Speed < STOP_SPEED_THRESHOLD)
-            {
-                if (!inStop)
-                {
-                    stops++;
-                    inStop = true;
-                }
-            }
-            else
-            {
-                inStop = false;
-            }
-        }
-
-        return stops;
-    }
-
-    /// <summary>
     /// Calculate running time, stop time, and number of stops from waypoints
     /// Running Time = moving intervals + short stop groups (≤120s)
     /// Stop Time = long stop groups (>120s)
@@ -623,82 +584,4 @@ public class VehicleHistoryService
 
         return await GetVehicleHistoryAsync(bearerToken, vehicle.Id, startTime, endTime);
     }
-}
-
-/// <summary>
-/// Result model for vehicle history queries
-/// </summary>
-public class VehicleHistoryResult
-{
-    public string VehicleId { get; set; } = "";
-    public DateTime StartTime { get; set; }
-    public DateTime EndTime { get; set; }
-    public int TotalWaypoints { get; set; }
-    public int MovingWaypoints { get; set; }
-    public List<WaypointSummary> Waypoints { get; set; } = new();
-    public int? HoursBack { get; set; }
-    public string? Date { get; set; }
-
-    // Trip Statistics
-    public double TotalDistanceKm { get; set; }
-    public string TotalRunningTime { get; set; } = "";
-    public string TotalStopTime { get; set; } = "";
-    public double TotalRunningTimeHours { get; set; }
-    public double TotalStopTimeHours { get; set; }
-    public string TotalRunningTimeFormatted { get; set; } = "";
-    public string TotalStopTimeFormatted { get; set; } = "";
-    public int AmountOfTimeStop { get; set; }
-    public double AverageSpeedKmh { get; set; }
-    public double HighestSpeedKmh { get; set; }
-}
-
-/// <summary>
-/// Summary of a single waypoint
-/// </summary>
-public class WaypointSummary
-{
-    public string Timestamp { get; set; } = "";
-    public int RawGpsTime { get; set; }  // Raw GPS time value for testing purposes
-    public double Latitude { get; set; }
-    public double Longitude { get; set; }
-    public int Altitude { get; set; }
-    public double Speed { get; set; }
-    public byte Heading { get; set; }
-    public byte Satellites { get; set; }
-    public double Mileage { get; set; }
-    public double GpsMileage { get; set; }
-    public double CumulativeDistanceKm { get; set; }  // Running total distance from start
-    public short EventId { get; set; }
-    public int Status { get; set; }
-    public double Voltage { get; set; }
-    public short Battery { get; set; }
-    public string? DriverId { get; set; }
-    public string? DriverCode { get; set; }
-    public string? Info { get; set; }
-    public string VehicleStatus { get; set; } = ""; // "running", "idle", or "stop"
-}
-
-/// <summary>
-/// Result model for trip summary statistics
-/// </summary>
-public class VehicleTripSummary
-{
-    public string VehicleId { get; set; } = "";
-    public string StartTime { get; set; } = "";
-    public string EndTime { get; set; } = "";
-    public double TotalDistanceKm { get; set; }
-    public double DurationHours { get; set; }
-    public double AverageSpeedKmh { get; set; }
-    public double MaxSpeedKmh { get; set; }
-    public int StopCount { get; set; }
-    public int TotalWaypoints { get; set; }
-    public int MovingWaypoints { get; set; }
-    public double AmountOfTimeStop { get; set; } // Time spent stopped in hours
-    public double AmountOfTimeRunning { get; set; } // Time spent running in hours
-    public double StartLatitude { get; set; }
-    public double StartLongitude { get; set; }
-    public string StartInfo { get; set; } = "";
-    public double EndLatitude { get; set; }
-    public double EndLongitude { get; set; }
-    public string EndInfo { get; set; } = "";
 }

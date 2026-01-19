@@ -10,6 +10,9 @@ namespace McpVersionVer2.Tools;
 [McpServerToolType]
 public class VehicleLiveStatusTools
 {
+    private const double DISTANCE_DIVISOR = 1000.0;
+    private const double SPEED_DIVISOR = 100.0;
+
     private readonly VehicleStatusService _statusService;
     private readonly VehicleStatusMapperService _mapper;
 
@@ -227,9 +230,9 @@ public class VehicleLiveStatusTools
             {
                 plate = v.Plate,
                 displayName = v.CustomPlateNumber,
-                gpsMileage = $"{(v.Daily?.GpsMileage ?? 0) / 1000.0:F2} km",
+                gpsMileage = $"{(v.Daily?.GpsMileage ?? 0) / DISTANCE_DIVISOR:F2} km",
                 runTime = FormatRunTime(v.Daily?.RunTime ?? 0),
-                maxSpeed = $"{(v.Daily?.MaxSpeed ?? 0) / 100.0:F1} km/h",
+                maxSpeed = $"{(v.Daily?.MaxSpeed ?? 0) / SPEED_DIVISOR:F1} km/h",
                 overSpeedCount = v.Daily?.OverSpeed ?? 0,
                 engineOffCount = v.Daily?.StopCount ?? 0,
                 vehicleStopCount = v.Daily?.IdleCount ?? 0
