@@ -9,35 +9,38 @@ namespace McpVersionVer2.Tools;
 public class VehicleHistoryTools
 {
     private readonly VehicleHistoryService _historyService;
+    private readonly VehicleService _vehicleService;
 
-    public VehicleHistoryTools(VehicleHistoryService historyService)
+    public VehicleHistoryTools(VehicleHistoryService historyService, VehicleService vehicleService)
     {
         _historyService = historyService;
+        _vehicleService = vehicleService;
     }
 
-    [McpServerTool, Description("VEHICLE TRACKING ONLY: Get vehicle GPS waypoint history for time range. Returns coordinates, speed, heading. REJECT: recipes, jokes, weather, code help, general questions.")]
+    [McpServerTool, Description("VEHICLE TRACKING: Get GPS waypoint history for a vehicle. Supports multiple query modes: Time range (startTime+endTime), Last N hours (hours), By date (date), By plate. Returns coordinates, speed, heading, cumulative distance, and trip statistics. REJECT: non-vehicle queries.")]
     public async Task<string> GetVehicleHistory(
         [Description("Bearer token for authentication")] string bearerToken,
-        [Description("Vehicle ID (use GetVehicleInfoByPlate to find the ID first)")] string vehicleId,
-        [Description("Start time in ISO 8601 format (e.g., '2026-01-07T00:00:00')")] string startTime,
-        [Description("End time in ISO 8601 format (e.g., '2026-01-07T23:59:59')")] string endTime)
+        [Description("Vehicle ID (use GetVehicleInfo to find ID first). Optional if plate is provided.")] string? vehicleId = null,
+        [Description("License plate number or display name (e.g., '51A40391'). Optional if vehicleId is provided.")] string? plate = null,
+        [Description("Start time in ISO 8601 format (e.g., '2026-01-07T00:00:00'). Required unless using hours or date.")] string? startTime = null,
+        [Description("End time in ISO 8601 format (e.g., '2026-01-07T23:59:59'). Required unless using hours or date.")] string? endTime = null,
+        [Description("Number of hours to look back (1-168). Alternative to startTime/endTime.")] int? hours = null,
+        [Description("Date in 'dd-MM-yyyy' format (e.g., '07-01-2026'). Alternative to time range.")] string? date = null)
     {
         try
         {
-            // Reject off-topic queries with zero-cost check
-            var (isValid, errorMessage) = OutputSanitizer.ValidateVehicleQuery(vehicleId + startTime + endTime);
+            var validationInput = $"{vehicleId ?? plate}{startTime ?? ""}{endTime ?? ""}{hours?.ToString() ?? ""}{date ?? ""}";
+            var (isValid, errorMessage) = OutputSanitizer.ValidateVehicleQuery(validationInput);
             if (!isValid)
             {
                 return OutputSanitizer.CreateErrorResponse("This tool is ONLY for vehicle tracking queries. " + errorMessage, "OFF_TOPIC");
             }
 
-            // Validate bearer token format
             if (!OutputSanitizer.IsValidBearerToken(bearerToken))
             {
                 return OutputSanitizer.CreateErrorResponse("Invalid bearer token format.", "INVALID_TOKEN");
             }
 
-            // Rate limiting
             var tokenHash = RateLimiter.GetTokenHash(bearerToken);
             var (allowed, rateLimitReason) = RateLimiter.IsAllowed(tokenHash);
             if (!allowed)
@@ -45,38 +48,79 @@ public class VehicleHistoryTools
                 return OutputSanitizer.CreateErrorResponse(rateLimitReason!, "RATE_LIMIT_EXCEEDED");
             }
 
-            // Validate vehicle ID
-            if (!OutputSanitizer.IsValidVehicleId(vehicleId))
+            DateTime start;
+            DateTime end;
+            int hoursBack = 0;
+            string? dateStr = null;
+
+            if (!string.IsNullOrEmpty(plate))
+            {
+                if (!OutputSanitizer.IsValidPlateNumber(plate))
+                {
+                    return OutputSanitizer.CreateErrorResponse("Invalid license plate format.", "INVALID_PLATE");
+                }
+
+                var vehicle = await _vehicleService.GetVehicleByPlateAsync(bearerToken, plate);
+                if (vehicle == null)
+                {
+                    return System.Text.Json.JsonSerializer.Serialize(new { error = $"No vehicle found with plate '{plate}'" });
+                }
+                vehicleId = vehicle.Id;
+            }
+
+            if (!string.IsNullOrEmpty(date))
+            {
+                if (!DateTime.TryParseExact(date, "dd-MM-yyyy", null, System.Globalization.DateTimeStyles.None, out var targetDate))
+                {
+                    return System.Text.Json.JsonSerializer.Serialize(new { error = "Invalid date format. Use 'dd-MM-yyyy' (e.g., '07-01-2026')" });
+                }
+                start = targetDate.Date;
+                end = start.AddDays(1).AddSeconds(-1);
+                dateStr = date;
+            }
+            else if (hours.HasValue)
+            {
+                if (hours.Value <= 0 || hours.Value > 168)
+                {
+                    return OutputSanitizer.CreateErrorResponse("Hours must be between 1 and 168 (1 week).", "INVALID_HOURS");
+                }
+                end = DateTime.UtcNow;
+                start = end.AddHours(-hours.Value);
+                hoursBack = hours.Value;
+            }
+            else
+            {
+                if (string.IsNullOrEmpty(startTime) || string.IsNullOrEmpty(endTime))
+                {
+                    return OutputSanitizer.CreateErrorResponse("Either startTime+endTime, hours, or date must be provided.", "INVALID_TIME_RANGE");
+                }
+
+                if (!OutputSanitizer.IsValidDateTimeString(startTime) || !DateTime.TryParse(startTime, out start))
+                {
+                    return OutputSanitizer.CreateErrorResponse("Invalid start time format. Use ISO 8601 format (e.g., '2026-01-07T00:00:00')", "INVALID_START_TIME");
+                }
+
+                if (!OutputSanitizer.IsValidDateTimeString(endTime) || !DateTime.TryParse(endTime, out end))
+                {
+                    return OutputSanitizer.CreateErrorResponse("Invalid end time format. Use ISO 8601 format (e.g., '2026-01-07T23:59:59')", "INVALID_END_TIME");
+                }
+            }
+
+            if (!string.IsNullOrEmpty(vehicleId) && !OutputSanitizer.IsValidVehicleId(vehicleId))
             {
                 return OutputSanitizer.CreateErrorResponse("Invalid vehicle ID format.", "INVALID_VEHICLE_ID");
             }
 
-            // Validate datetime formats
-            if (!OutputSanitizer.IsValidDateTimeString(startTime))
-            {
-                return OutputSanitizer.CreateErrorResponse("Invalid start time format. Use ISO 8601 format (e.g., '2026-01-07T00:00:00')", "INVALID_START_TIME");
-            }
-
-            if (!OutputSanitizer.IsValidDateTimeString(endTime))
-            {
-                return OutputSanitizer.CreateErrorResponse("Invalid end time format. Use ISO 8601 format (e.g., '2026-01-07T23:59:59')", "INVALID_END_TIME");
-            }
-
-            if (!DateTime.TryParse(startTime, out var start))
-            {
-                return OutputSanitizer.CreateErrorResponse("Invalid start time format. Use ISO 8601 format (e.g., '2026-01-07T00:00:00')", "INVALID_START_TIME");
-            }
-
-            if (!DateTime.TryParse(endTime, out var end))
-            {
-                return OutputSanitizer.CreateErrorResponse("Invalid end time format. Use ISO 8601 format (e.g., '2026-01-07T23:59:59')", "INVALID_END_TIME");
-            }
-
-            var result = await _historyService.GetVehicleHistoryAsync(bearerToken, vehicleId, start, end);
+            var result = await _historyService.GetVehicleHistoryAsync(bearerToken, vehicleId!, start, end);
+            result.HoursBack = hoursBack;
+            result.Date = dateStr;
 
             if (result.TotalWaypoints == 0)
             {
-                return System.Text.Json.JsonSerializer.Serialize(new { message = $"No waypoints found for vehicle {vehicleId} in the specified time range." });
+                var queryDesc = !string.IsNullOrEmpty(date) ? $"on {date}" :
+                               hours.HasValue ? $"in the last {hours} hours" :
+                               $"between {start:yyyy-MM-dd HH:mm} and {end:yyyy-MM-dd HH:mm}";
+                return System.Text.Json.JsonSerializer.Serialize(new { message = $"No waypoints found for vehicle {vehicleId} {queryDesc}." });
             }
 
             return System.Text.Json.JsonSerializer.Serialize(new
@@ -106,28 +150,26 @@ public class VehicleHistoryTools
         }
     }
 
-    [McpServerTool, Description("VEHICLE TRACKING ONLY: Get GPS history for last N hours (1-168). REJECT: non-vehicle queries.")]
-    public async Task<string> GetVehicleHistoryLastHours(
+    [McpServerTool, Description("VEHICLE TRACKING ONLY: Get trip summary statistics (distance, speed, duration, start/end locations) for a vehicle over a time range. REJECT: non-vehicle queries.")]
+    public async Task<string> GetVehicleTripSummary(
         [Description("Bearer token for authentication")] string bearerToken,
-        [Description("Vehicle ID")] string vehicleId,
-        [Description("Number of hours to look back (e.g., 24 for last day)")] int hours)
+        [Description("Vehicle ID (use GetVehicleInfo to find ID first)")] string vehicleId,
+        [Description("Start time in ISO 8601 format (e.g., '2026-01-07T00:00:00')")] string startTime,
+        [Description("End time in ISO 8601 format (e.g., '2026-01-07T23:59:59')")] string endTime)
     {
         try
         {
-            // Reject off-topic queries
-            var (isValid, errorMessage) = OutputSanitizer.ValidateVehicleQuery(vehicleId + hours.ToString());
+            var (isValid, errorMessage) = OutputSanitizer.ValidateVehicleQuery(vehicleId + startTime + endTime);
             if (!isValid)
             {
                 return OutputSanitizer.CreateErrorResponse("This tool is ONLY for vehicle tracking queries. " + errorMessage, "OFF_TOPIC");
             }
 
-            // Validate bearer token format
             if (!OutputSanitizer.IsValidBearerToken(bearerToken))
             {
                 return OutputSanitizer.CreateErrorResponse("Invalid bearer token format.", "INVALID_TOKEN");
             }
 
-            // Rate limiting
             var tokenHash = RateLimiter.GetTokenHash(bearerToken);
             var (allowed, rateLimitReason) = RateLimiter.IsAllowed(tokenHash);
             if (!allowed)
@@ -135,120 +177,9 @@ public class VehicleHistoryTools
                 return OutputSanitizer.CreateErrorResponse(rateLimitReason!, "RATE_LIMIT_EXCEEDED");
             }
 
-            // Validate vehicle ID
             if (!OutputSanitizer.IsValidVehicleId(vehicleId))
             {
                 return OutputSanitizer.CreateErrorResponse("Invalid vehicle ID format.", "INVALID_VEHICLE_ID");
-            }
-
-            // Validate hours range
-            if (hours <= 0 || hours > 168)
-            {
-                return OutputSanitizer.CreateErrorResponse("Hours must be between 1 and 168 (1 week).", "INVALID_HOURS");
-            }
-
-            var result = await _historyService.GetVehicleHistoryLastHoursAsync(bearerToken, vehicleId, hours);
-
-            if (result.TotalWaypoints == 0)
-            {
-                return System.Text.Json.JsonSerializer.Serialize(new { message = $"No waypoints found for vehicle {vehicleId} in the last {hours} hours." });
-            }
-
-            return System.Text.Json.JsonSerializer.Serialize(new
-            {
-                vehicleId = result.VehicleId,
-                startTime = result.StartTime,
-                endTime = result.EndTime,
-                hoursBack = result.HoursBack,
-                date = result.Date,
-                summary = new
-                {
-                    totalWaypoints = result.TotalWaypoints,
-                    movingWaypoints = result.MovingWaypoints,
-                    totalDistanceKm = result.TotalDistanceKm,
-                    totalRunningTime = TimeSpan.FromHours(result.TotalRunningTimeHours).ToString(@"hh\:mm\:ss"),
-                    totalStopTime = TimeSpan.FromHours(result.TotalStopTimeHours).ToString(@"hh\:mm\:ss"),
-                    averageSpeedKmh = result.AverageSpeedKmh,
-                    highestSpeedKmh = result.HighestSpeedKmh,
-                    stopCount = result.AmountOfTimeStop
-                },
-                waypoints = result.Waypoints
-            }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-        }
-        catch (Exception ex)
-        {
-            return OutputSanitizer.CreateErrorResponse(ex.Message, "INTERNAL_ERROR");
-        }
-    }
-
-    [McpServerTool, Description("VEHICLE TRACKING ONLY: Get full-day GPS waypoints for specific date. REJECT: non-vehicle queries.")]
-    public async Task<string> GetVehicleHistoryByDate(
-        [Description("Bearer token for authentication")] string bearerToken,
-        [Description("Vehicle ID")] string vehicleId,
-        [Description("Date in format 'dd-MM-yyyy' (e.g., '07-01-2026')")] string date)
-    {
-        try
-        {
-            // Reject off-topic queries
-            var (isValid, errorMessage) = OutputSanitizer.ValidateVehicleQuery(vehicleId + date);
-            if (!isValid)
-            {
-                return OutputSanitizer.CreateErrorResponse("This tool is ONLY for vehicle tracking queries. " + errorMessage, "OFF_TOPIC");
-            }
-
-            if (!DateTime.TryParseExact(date, "dd-MM-yyyy", null, System.Globalization.DateTimeStyles.None, out var targetDate))
-            {
-                return System.Text.Json.JsonSerializer.Serialize(new { error = "Invalid date format. Use 'dd-MM-yyyy' (e.g., '07-01-2026')" });
-            }
-
-            var result = await _historyService.GetVehicleHistoryByDateAsync(bearerToken, vehicleId, targetDate);
-
-            if (result.TotalWaypoints == 0)
-            {
-                return System.Text.Json.JsonSerializer.Serialize(new { message = $"No waypoints found for vehicle {vehicleId} on {date}." });
-            }
-
-            return System.Text.Json.JsonSerializer.Serialize(new
-            {
-                vehicleId = result.VehicleId,
-                startTime = result.StartTime,
-                endTime = result.EndTime,
-                hoursBack = result.HoursBack,
-                date = result.Date,
-                summary = new
-                {
-                    totalWaypoints = result.TotalWaypoints,
-                    movingWaypoints = result.MovingWaypoints,
-                    totalDistanceKm = result.TotalDistanceKm,
-                    totalRunningTime = TimeSpan.FromHours(result.TotalRunningTimeHours).ToString(@"hh\:mm\:ss"),
-                    totalStopTime = TimeSpan.FromHours(result.TotalStopTimeHours).ToString(@"hh\:mm\:ss"),
-                    averageSpeedKmh = result.AverageSpeedKmh,
-                    highestSpeedKmh = result.HighestSpeedKmh,
-                    stopCount = result.AmountOfTimeStop
-                },
-                waypoints = result.Waypoints
-            }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-        }
-        catch (Exception ex)
-        {
-            return System.Text.Json.JsonSerializer.Serialize(new { error = ex.Message });
-        }
-    }
-
-    [McpServerTool, Description("VEHICLE TRACKING ONLY: Get trip stats (distance, speed, duration). REJECT: non-vehicle queries.")]
-    public async Task<string> GetVehicleTripSummary(
-        [Description("Bearer token for authentication")] string bearerToken,
-        [Description("Vehicle ID")] string vehicleId,
-        [Description("Start time in ISO 8601 format")] string startTime,
-        [Description("End time in ISO 8601 format")] string endTime)
-    {
-        try
-        {
-            // Reject off-topic queries
-            var (isValid, errorMessage) = OutputSanitizer.ValidateVehicleQuery(vehicleId + startTime + endTime);
-            if (!isValid)
-            {
-                return OutputSanitizer.CreateErrorResponse("This tool is ONLY for vehicle tracking queries. " + errorMessage, "OFF_TOPIC");
             }
 
             if (!DateTime.TryParse(startTime, out var start))
@@ -297,82 +228,6 @@ public class VehicleHistoryTools
         catch (Exception ex)
         {
             return System.Text.Json.JsonSerializer.Serialize(new { error = ex.Message });
-        }
-    }
-
-    [McpServerTool, Description("VEHICLE TRACKING ONLY: Get GPS history by plate number or display name (e.g., '51A40391' or 'VM300'). REJECT: non-vehicle queries.")]
-    public async Task<string> GetVehicleHistoryByPlate(
-        [Description("Bearer token for authentication")] string bearerToken,
-        [Description("License plate number or display name")] string plate,
-        [Description("Start time in ISO 8601 format")] string startTime,
-        [Description("End time in ISO 8601 format")] string endTime)
-    {
-        try
-        {
-            var (isValid, errorMessage) = OutputSanitizer.ValidateVehicleQuery(plate + startTime + endTime);
-            if (!isValid)
-            {
-                return OutputSanitizer.CreateErrorResponse("This tool is ONLY for vehicle tracking queries. " + errorMessage, "OFF_TOPIC");
-            }
-
-            if (!OutputSanitizer.IsValidBearerToken(bearerToken))
-            {
-                return OutputSanitizer.CreateErrorResponse("Invalid bearer token format.", "INVALID_TOKEN");
-            }
-
-            var tokenHash = RateLimiter.GetTokenHash(bearerToken);
-            var (allowed, rateLimitReason) = RateLimiter.IsAllowed(tokenHash);
-            if (!allowed)
-            {
-                return OutputSanitizer.CreateErrorResponse(rateLimitReason!, "RATE_LIMIT_EXCEEDED");
-            }
-
-            if (!OutputSanitizer.IsValidPlateNumber(plate))
-            {
-                return OutputSanitizer.CreateErrorResponse("Invalid license plate format.", "INVALID_PLATE");
-            }
-
-            if (!OutputSanitizer.IsValidDateTimeString(startTime) || !DateTime.TryParse(startTime, out var start))
-            {
-                return OutputSanitizer.CreateErrorResponse("Invalid start time format", "INVALID_START_TIME");
-            }
-
-            if (!OutputSanitizer.IsValidDateTimeString(endTime) || !DateTime.TryParse(endTime, out var end))
-            {
-                return OutputSanitizer.CreateErrorResponse("Invalid end time format", "INVALID_END_TIME");
-            }
-
-            var result = await _historyService.GetVehicleHistoryByPlateAsync(bearerToken, plate, start, end);
-
-            if (result.TotalWaypoints == 0)
-            {
-                return System.Text.Json.JsonSerializer.Serialize(new { message = $"No waypoints found for vehicle with plate '{plate}'." });
-            }
-
-            return System.Text.Json.JsonSerializer.Serialize(new
-            {
-                vehicleId = result.VehicleId,
-                startTime = result.StartTime,
-                endTime = result.EndTime,
-                hoursBack = result.HoursBack,
-                date = result.Date,
-                summary = new
-                {
-                    totalWaypoints = result.TotalWaypoints,
-                    movingWaypoints = result.MovingWaypoints,
-                    totalDistanceKm = result.TotalDistanceKm,
-                    totalRunningTime = TimeSpan.FromHours(result.TotalRunningTimeHours).ToString(@"hh\:mm\:ss"),
-                    totalStopTime = TimeSpan.FromHours(result.TotalStopTimeHours).ToString(@"hh\:mm\:ss"),
-                    averageSpeedKmh = result.AverageSpeedKmh,
-                    highestSpeedKmh = result.HighestSpeedKmh,
-                    stopCount = result.AmountOfTimeStop
-                },
-                waypoints = result.Waypoints
-            }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-        }
-        catch (Exception ex)
-        {
-            return OutputSanitizer.CreateErrorResponse(ex.Message, "INTERNAL_ERROR");
         }
     }
 }
