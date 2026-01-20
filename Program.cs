@@ -1,36 +1,63 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
+using McpVersionVer2.Services;
 
-var builder = Host.CreateApplicationBuilder(args);
-builder.Logging.AddConsole(consoleLogOptions =>
-{
-    consoleLogOptions.LogToStandardErrorThreshold = LogLevel.Trace;
-});
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
 
 builder.Services.AddHttpClient();
-builder.Services.AddTransient<McpVersionVer2.Services.VehicleMapperService>();
 
-builder.Services.AddTransient<McpVersionVer2.Services.VehicleStatusService>(sp => 
-    new McpVersionVer2.Services.VehicleStatusService(sp.GetRequiredService<System.Net.Http.IHttpClientFactory>().CreateClient(), sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>()));
+// Guardrail services
+builder.Services.AddSingleton<AuditLogService>();
+builder.Services.AddSingleton<GuardrailService>();
 
-builder.Services.AddTransient<McpVersionVer2.Services.VehicleStatusMapperService>();
+builder.Services.AddTransient<VehicleMapperService>();
 
-builder.Services.AddTransient<McpVersionVer2.Services.WaypointService>(sp => 
-    new McpVersionVer2.Services.WaypointService(sp.GetRequiredService<System.Net.Http.IHttpClientFactory>().CreateClient(), sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<McpVersionVer2.Services.WaypointService>>(), sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>()));
+builder.Services.AddTransient<VehicleStatusService>(sp => 
+    new VehicleStatusService(
+        sp.GetRequiredService<IHttpClientFactory>().CreateClient(), 
+        sp.GetRequiredService<IConfiguration>()
+    ));
 
-builder.Services.AddTransient<McpVersionVer2.Services.VehicleHistoryService>();
+builder.Services.AddTransient<VehicleStatusMapperService>();
 
-builder.Services.AddTransient<McpVersionVer2.Services.AuthService>(sp => 
-    new McpVersionVer2.Services.AuthService(sp.GetRequiredService<System.Net.Http.IHttpClientFactory>().CreateClient(), sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<McpVersionVer2.Services.AuthService>>(), sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>()));
+builder.Services.AddTransient<WaypointService>(sp => 
+    new WaypointService(
+        sp.GetRequiredService<IHttpClientFactory>().CreateClient(), 
+        sp.GetRequiredService<ILogger<WaypointService>>(), 
+        sp.GetRequiredService<IConfiguration>()
+    ));
 
-builder.Services.AddTransient<McpVersionVer2.Services.VehicleService>(sp => 
-    new McpVersionVer2.Services.VehicleService(sp.GetRequiredService<System.Net.Http.IHttpClientFactory>().CreateClient(), sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<McpVersionVer2.Services.VehicleService>>(), sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>()));
+builder.Services.AddTransient<VehicleHistoryService>();
 
-builder.Services.AddTransient<McpVersionVer2.Services.GisUtil>();
+builder.Services.AddTransient<AuthService>(sp => 
+    new AuthService(
+        sp.GetRequiredService<IHttpClientFactory>().CreateClient(), 
+        sp.GetRequiredService<ILogger<AuthService>>(), 
+        sp.GetRequiredService<IConfiguration>()
+    ));
 
-builder.Services
-    .AddMcpServer()
-    .WithStdioServerTransport()
-    .WithToolsFromAssembly();
-await builder.Build().RunAsync();
+builder.Services.AddTransient<VehicleService>(sp => 
+    new VehicleService(
+        sp.GetRequiredService<IHttpClientFactory>().CreateClient(), 
+        sp.GetRequiredService<ILogger<VehicleService>>(), 
+        sp.GetRequiredService<IConfiguration>()
+    ));
+
+builder.Services.AddTransient<GisUtil>();
+
+builder.Services.AddMcpServer()
+    .WithPromptsFromAssembly()
+    .WithHttpTransport()
+    .WithToolsFromAssembly(); 
+
+var app = builder.Build();
+
+app.MapMcp();
+
+app.Run("http://0.0.0.0:8080");

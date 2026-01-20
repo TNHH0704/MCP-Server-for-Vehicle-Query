@@ -109,8 +109,8 @@ public class VehicleMapperService
             simPhone = v.SimPhone,
             maxSpeed = v.MaxSpeed / SPEED_DIVISOR,
             description = v.Description,
-            activeDate = v.ActiveDate,
-            updatedAt = v.UpdatedAt
+            activeDate = v.ActiveDate?.ToString("dd-MM-yyyy HH:mm:ss"),
+            updatedAt = v.UpdatedAt.ToString("dd-MM-yyyy HH:mm:ss")
         }).ToList<object>();
     }
 

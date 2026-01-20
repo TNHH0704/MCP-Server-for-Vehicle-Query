@@ -4,6 +4,7 @@ using McpVersionVer2.Models;
 using McpVersionVer2.Services;
 using McpVersionVer2.Security;
 using ModelContextProtocol.Server;
+using static McpVersionVer2.Services.AppJsonSerializerOptions;
 
 namespace McpVersionVer2.Tools;
 
@@ -15,11 +16,13 @@ public class VehicleLiveStatusTools
 
     private readonly VehicleStatusService _statusService;
     private readonly VehicleStatusMapperService _mapper;
+    private readonly GuardrailService _guardrail;
 
-    public VehicleLiveStatusTools(VehicleStatusService statusService, VehicleStatusMapperService mapper)
+    public VehicleLiveStatusTools(VehicleStatusService statusService, VehicleStatusMapperService mapper, GuardrailService guardrail)
     {
         _statusService = statusService;
         _mapper = mapper;
+        _guardrail = guardrail;
     }
 
     [McpServerTool, Description("VEHICLE LIVE STATUS: Get real-time vehicle status. Supports: all vehicles, by plate, by ID, by group, by type, or filtered by status (all, moving, stopped, idle, overspeeding). Returns speed, location, heading, and status info. REJECT: non-vehicle queries.")]
@@ -31,9 +34,18 @@ public class VehicleLiveStatusTools
         [Description("Filter by vehicle type (e.g., 'Xe máy'). Optional.")] string? type = null,
         [Description("Filter by status: 'all', 'moving', 'stopped', 'idle', 'overspeeding'. Default: 'all'.")] string? status = null)
     {
+        var queryContext = $"plate:{plate ?? ""} id:{id ?? ""} group:{group ?? ""} type:{type ?? ""} status:{status ?? ""}";
+        var userId = RateLimiter.GetTokenHash(bearerToken);
+        
+        var validation = _guardrail.ValidateQuery(queryContext, "live_status", userId);
+        if (!validation.IsValid)
+        {
+            return validation.ToJsonResponse();
+        }
+
         try
         {
-            var (isValid, errorMessage) = OutputSanitizer.ValidateVehicleQuery($"{plate}{id}{group}{type}{status}");
+            var (isValid, errorMessage) = OutputSanitizer.ValidateVehicleQuery(queryContext);
             if (!isValid)
             {
                 return OutputSanitizer.CreateErrorResponse("This tool is ONLY for vehicle tracking queries. " + errorMessage, "OFF_TOPIC");
@@ -98,18 +110,15 @@ public class VehicleLiveStatusTools
 
             if (vehicles == null || !vehicles.Any())
             {
-                return System.Text.Json.JsonSerializer.Serialize(new { message = "No vehicles found matching the specified criteria." });
+                return System.Text.Json.JsonSerializer.Serialize(new { message = "No vehicles found matching the specified criteria." }, Default);
             }
 
             var summaries = _mapper.MapToSummaries(vehicles);
-            return System.Text.Json.JsonSerializer.Serialize(summaries, new System.Text.Json.JsonSerializerOptions
-            {
-                WriteIndented = true
-            });
+            return System.Text.Json.JsonSerializer.Serialize(summaries, Default);
         }
         catch (Exception ex)
         {
-            return System.Text.Json.JsonSerializer.Serialize(new { error = ex.Message });
+            return System.Text.Json.JsonSerializer.Serialize(new { error = ex.Message }, Default);
         }
     }
 
@@ -118,6 +127,15 @@ public class VehicleLiveStatusTools
         [Description("Bearer token")] string bearerToken,
         [Description("Filter by plate number. Optional.")] string? plate = null)
     {
+        var queryContext = $"daily statistics mileage runtime plate:{plate ?? ""}";
+        var userId = RateLimiter.GetTokenHash(bearerToken);
+        
+        var validation = _guardrail.ValidateQuery(queryContext, "live_status", userId);
+        if (!validation.IsValid)
+        {
+            return validation.ToJsonResponse();
+        }
+
         try
         {
             var (isValid, errorMessage) = OutputSanitizer.ValidateVehicleQuery(plate ?? "");
@@ -154,21 +172,18 @@ public class VehicleLiveStatusTools
 
             if (vehicles == null || !vehicles.Any())
             {
-                return System.Text.Json.JsonSerializer.Serialize(new { message = "No vehicles found." });
+                return System.Text.Json.JsonSerializer.Serialize(new { message = "No vehicles found." }, Default);
             }
 
             var dailyStats = string.IsNullOrEmpty(plate)
                 ? _mapper.MapToDailyStatsSummaries(vehicles)
                 : new List<McpVersionVer2.Models.DailyStatisticsSummaryDto> { _mapper.MapToDailyStatsSummary(vehicles.First()) };
 
-            return System.Text.Json.JsonSerializer.Serialize(dailyStats, new System.Text.Json.JsonSerializerOptions
-            {
-                WriteIndented = true
-            });
+            return System.Text.Json.JsonSerializer.Serialize(dailyStats, Default);
         }
         catch (Exception ex)
         {
-            return System.Text.Json.JsonSerializer.Serialize(new { error = ex.Message });
+            return System.Text.Json.JsonSerializer.Serialize(new { error = ex.Message }, Default);
         }
     }
 
@@ -177,6 +192,15 @@ public class VehicleLiveStatusTools
         [Description("Bearer token")] string bearerToken,
         [Description("Filter by plate number. Optional - returns all if not specified.")] string? plate = null)
     {
+        var queryContext = $"daily status mileage runtime plate:{plate ?? ""}";
+        var userId = RateLimiter.GetTokenHash(bearerToken);
+        
+        var validation = _guardrail.ValidateQuery(queryContext, "live_status", userId);
+        if (!validation.IsValid)
+        {
+            return validation.ToJsonResponse();
+        }
+
         try
         {
             var (isValid, errorMessage) = OutputSanitizer.ValidateVehicleQuery(plate ?? "");
@@ -213,7 +237,7 @@ public class VehicleLiveStatusTools
 
             if (vehicles == null || !vehicles.Any())
             {
-                return System.Text.Json.JsonSerializer.Serialize(new { message = "No vehicles found." });
+                return System.Text.Json.JsonSerializer.Serialize(new { message = "No vehicles found." }, Default);
             }
 
             var dailyStatus = vehicles.Select(v => new
@@ -228,14 +252,11 @@ public class VehicleLiveStatusTools
                 vehicleStopCount = v.Daily?.IdleCount ?? 0
             }).ToList();
 
-            return System.Text.Json.JsonSerializer.Serialize(dailyStatus, new System.Text.Json.JsonSerializerOptions
-            {
-                WriteIndented = true
-            });
+            return System.Text.Json.JsonSerializer.Serialize(dailyStatus, Default);
         }
         catch (Exception ex)
         {
-            return System.Text.Json.JsonSerializer.Serialize(new { error = ex.Message });
+            return System.Text.Json.JsonSerializer.Serialize(new { error = ex.Message }, Default);
         }
     }
 
