@@ -46,8 +46,6 @@ public class VehicleHistoryService
         return $"{hours:D2}:{minutes:D2}:{seconds:D2}";
     }
 
-
-
     /// <summary>
     /// Round a number to 3 decimal places
     /// </summary>
@@ -55,8 +53,6 @@ public class VehicleHistoryService
     {
         return Math.Round(value, 3);
     }
-
-
 
     /// <summary>
     /// Round a number to 6 decimal places

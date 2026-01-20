@@ -60,11 +60,8 @@ public class VehicleHistoryTools
                     return OutputSanitizer.CreateErrorResponse("Invalid license plate format.", "INVALID_PLATE");
                 }
 
-                var vehicle = await _vehicleService.GetVehicleByPlateAsync(bearerToken, plate);
-                if (vehicle == null)
-                {
-                    return System.Text.Json.JsonSerializer.Serialize(new { error = $"No vehicle found with plate '{plate}'" });
-                }
+                var vehicle = await _vehicleService.GetVehicleByPlateAsync(bearerToken, plate)
+                    .SafeGetSingleAsync("vehicle", $"plate '{plate}'");
                 vehicleId = vehicle.Id;
             }
 

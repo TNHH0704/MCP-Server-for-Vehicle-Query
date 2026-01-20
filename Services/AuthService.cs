@@ -21,12 +21,9 @@ public class AuthService
     {
         _httpClient = httpClient;
         _logger = logger;
-        _authApiUrl = configuration["ApiSettings:AuthApiUrl"]
-            ?? configuration["AUTH_API_URL"]
-            ?? throw new InvalidOperationException("AuthApiUrl not configured. Set AUTH_API_URL environment variable.");
-        _refreshTokenEndpoint = configuration["ApiSettings:RefreshTokenEndpoint"]
-            ?? configuration["REFRESH_TOKEN_ENDPOINT"]
-            ?? "/refresh";
+        _authApiUrl = configuration.GetValue<string>("ApiSettings:AuthApiUrl")
+            ?? throw new InvalidOperationException("AuthApiUrl not configured in appsettings.json");
+        _refreshTokenEndpoint = configuration.GetValue<string>("ApiSettings:RefreshTokenEndpoint") ?? "/refresh";
     }
 
     /// <summary>

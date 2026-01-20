@@ -50,20 +50,14 @@ public class VehicleInfoTools
 
             if (!string.IsNullOrEmpty(plate))
             {
-                var vehicle = await _vehicleService.GetVehicleByPlateAsync(bearerToken, plate);
-                if (vehicle == null)
-                {
-                    return System.Text.Json.JsonSerializer.Serialize(new { error = $"No vehicle found with plate: {plate}" });
-                }
+                var vehicle = await _vehicleService.GetVehicleByPlateAsync(bearerToken, plate)
+                    .SafeGetSingleAsync("vehicle", $"plate '{plate}'");
                 vehicles = new List<VehicleResponse> { vehicle };
             }
             else if (!string.IsNullOrEmpty(id))
             {
-                var vehicle = await _vehicleService.GetVehicleByIdAsync(bearerToken, id);
-                if (vehicle == null)
-                {
-                    return System.Text.Json.JsonSerializer.Serialize(new { error = $"No vehicle found with ID: {id}" });
-                }
+                var vehicle = await _vehicleService.GetVehicleByIdAsync(bearerToken, id)
+                    .SafeGetSingleAsync("vehicle", $"ID '{id}'");
                 vehicles = new List<VehicleResponse> { vehicle };
             }
             else if (!string.IsNullOrEmpty(group))
@@ -125,8 +119,9 @@ public class VehicleInfoTools
                 return OutputSanitizer.CreateErrorResponse(rateLimitReason!, "RATE_LIMIT_EXCEEDED");
             }
 
-            var vehicles = await _vehicleService.GetVehiclesAsync(bearerToken);
-            if (vehicles == null || !vehicles.Any())
+            var vehicles = await _vehicleService.GetVehiclesAsync(bearerToken)
+                .SafeGetListAsync("vehicles");
+            if (!vehicles.Any())
             {
                 return System.Text.Json.JsonSerializer.Serialize(new { message = "No vehicles found in the fleet. Unable to generate statistics." });
             }

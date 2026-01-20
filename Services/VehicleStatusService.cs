@@ -14,9 +14,8 @@ public class VehicleStatusService
     public VehicleStatusService(HttpClient httpClient, IConfiguration configuration)
     {
         _httpClient = httpClient;
-        _baseUrl = configuration["ApiSettings:VehicleStatusUrl"]
-            ?? configuration["VEHICLE_STATUS_URL"]
-            ?? throw new InvalidOperationException("VehicleStatusUrl not configured. Set VEHICLE_STATUS_URL environment variable.");
+        _baseUrl = configuration.GetValue<string>("ApiSettings:VehicleStatusUrl")
+            ?? throw new InvalidOperationException("VehicleStatusUrl not configured in appsettings.json");
     }
 
     /// <summary>
@@ -44,7 +43,7 @@ public class VehicleStatusService
         }
         catch (Exception ex)
         {
-            throw new Exception($"Failed to fetch vehicle statuses: {ex.Message}", ex);
+            throw new InvalidOperationException($"Failed to fetch vehicle statuses: {ex.Message}", ex);
         }
     }
 
@@ -83,6 +82,11 @@ public class VehicleStatusService
     /// </summary>
     public async Task<List<VehicleStatus>> GetVehiclesByGroupAsync(string bearerToken, string groupName)
     {
+        if (string.IsNullOrWhiteSpace(groupName))
+        {
+            throw new ArgumentException("Group name cannot be empty or whitespace.", nameof(groupName));
+        }
+
         var vehicles = await GetVehicleStatusesAsync(bearerToken);
         return vehicles.Where(v => 
             v.VehicleGroup?.Name.Contains(groupName, StringComparison.OrdinalIgnoreCase) ?? false)
@@ -130,6 +134,11 @@ public class VehicleStatusService
     /// </summary>
     public async Task<List<VehicleStatus>> GetVehiclesByTypeAsync(string bearerToken, string typeName)
     {
+        if (string.IsNullOrWhiteSpace(typeName))
+        {
+            throw new ArgumentException("Type name cannot be empty or whitespace.", nameof(typeName));
+        }
+
         var vehicles = await GetVehicleStatusesAsync(bearerToken);
         return vehicles.Where(v => 
             v.VehicleTypeName.Contains(typeName, StringComparison.OrdinalIgnoreCase))

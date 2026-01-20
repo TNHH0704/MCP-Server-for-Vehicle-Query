@@ -55,20 +55,14 @@ public class VehicleLiveStatusTools
 
             if (!string.IsNullOrEmpty(plate))
             {
-                var vehicle = await _statusService.GetVehicleStatusByPlateAsync(bearerToken, plate);
-                if (vehicle == null)
-                {
-                    return System.Text.Json.JsonSerializer.Serialize(new { error = $"No vehicle found with plate: {plate}" });
-                }
+                var vehicle = await _statusService.GetVehicleStatusByPlateAsync(bearerToken, plate)
+                    .SafeGetSingleAsync("vehicle", $"plate '{plate}'");
                 vehicles = new List<VehicleStatus> { vehicle };
             }
             else if (!string.IsNullOrEmpty(id))
             {
-                var vehicle = await _statusService.GetVehicleStatusByIdAsync(bearerToken, id);
-                if (vehicle == null)
-                {
-                    return System.Text.Json.JsonSerializer.Serialize(new { error = $"No vehicle found with ID: {id}" });
-                }
+                var vehicle = await _statusService.GetVehicleStatusByIdAsync(bearerToken, id)
+                    .SafeGetSingleAsync("vehicle", $"ID '{id}'");
                 vehicles = new List<VehicleStatus> { vehicle };
             }
             else if (!string.IsNullOrEmpty(group))
@@ -148,16 +142,14 @@ public class VehicleLiveStatusTools
 
             if (!string.IsNullOrEmpty(plate))
             {
-                var vehicle = await _statusService.GetVehicleStatusByPlateAsync(bearerToken, plate);
-                if (vehicle == null)
-                {
-                    return System.Text.Json.JsonSerializer.Serialize(new { error = $"No vehicle found with plate: {plate}" });
-                }
+                var vehicle = await _statusService.GetVehicleStatusByPlateAsync(bearerToken, plate)
+                    .SafeGetSingleAsync("vehicle", $"plate '{plate}'");
                 vehicles = new List<VehicleStatus> { vehicle };
             }
             else
             {
-                vehicles = await _statusService.GetVehicleStatusesAsync(bearerToken);
+                vehicles = await _statusService.GetVehicleStatusesAsync(bearerToken)
+                    .SafeGetListAsync("vehicle statuses");
             }
 
             if (vehicles == null || !vehicles.Any())
@@ -209,16 +201,14 @@ public class VehicleLiveStatusTools
 
             if (!string.IsNullOrEmpty(plate))
             {
-                var vehicle = await _statusService.GetVehicleStatusByPlateAsync(bearerToken, plate);
-                if (vehicle == null)
-                {
-                    return System.Text.Json.JsonSerializer.Serialize(new { error = $"No vehicle found with plate: {plate}" });
-                }
+                var vehicle = await _statusService.GetVehicleStatusByPlateAsync(bearerToken, plate)
+                    .SafeGetSingleAsync("vehicle", $"plate '{plate}'");
                 vehicles = new List<VehicleStatus> { vehicle };
             }
             else
             {
-                vehicles = await _statusService.GetVehicleStatusesAsync(bearerToken);
+                vehicles = await _statusService.GetVehicleStatusesAsync(bearerToken)
+                    .SafeGetListAsync("vehicle statuses");
             }
 
             if (vehicles == null || !vehicles.Any())
