@@ -117,3 +117,5 @@ PublishProfiles/
 # TEST_PROMPTS.md
 Dockerfile
 .gitignore
+docker-compose.yml
+README-Docker.md

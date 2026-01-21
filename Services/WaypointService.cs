@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Caching.Memory;
 using ProtoBuf;
 
 namespace McpVersionVer2.Services;
@@ -13,13 +14,21 @@ public class WaypointService
     private readonly string _waypointApiUrl;
     private readonly HttpClient _httpClient;
     private readonly ILogger<WaypointService> _logger;
+    private readonly IMemoryCache _cache;
+    private readonly TimeSpan _cacheExpiration = TimeSpan.FromMinutes(5);
 
-    public WaypointService(HttpClient httpClient, ILogger<WaypointService> logger, IConfiguration configuration)
+    public WaypointService(HttpClient httpClient, ILogger<WaypointService> logger, IConfiguration configuration, IMemoryCache cache)
     {
         _httpClient = httpClient;
         _logger = logger;
+        _cache = cache;
         _waypointApiUrl = configuration.GetValue<string>("ApiSettings:WaypointApiUrl")
             ?? throw new InvalidOperationException("WaypointApiUrl not configured in appsettings.json");
+    }
+
+    private string GetCacheKey(string vehicleId, DateTime startTime, DateTime endTime)
+    {
+        return $"waypoints_{vehicleId}_{startTime:yyyyMMddHHmmss}_{endTime:yyyyMMddHHmmss}";
     }
 
     /// <summary>
@@ -31,6 +40,13 @@ public class WaypointService
         DateTime startTime,
         DateTime endTime)
     {
+        var cacheKey = GetCacheKey(vehicleId, startTime, endTime);
+
+        if (_cache.TryGetValue(cacheKey, out List<Waypoint>? cachedWaypoints))
+        {
+            return cachedWaypoints ?? new List<Waypoint>();
+        }
+
         var startTimeEncoded = Uri.EscapeDataString(startTime.ToString("yyyy-MM-ddTHH:mm:ss"));
         var endTimeEncoded = Uri.EscapeDataString(endTime.ToString("yyyy-MM-ddTHH:mm:ss"));
         var url = $"{_waypointApiUrl}/{vehicleId}/{startTimeEncoded}/{endTimeEncoded}";
@@ -55,7 +71,10 @@ public class WaypointService
             return new List<Waypoint>();
         }
 
-        return DecompressWaypoints(compressedWaypoints);
+        var waypoints = DecompressWaypoints(compressedWaypoints);
+        _cache.Set(cacheKey, waypoints, _cacheExpiration);
+
+        return waypoints;
     }
 
     /// <summary>

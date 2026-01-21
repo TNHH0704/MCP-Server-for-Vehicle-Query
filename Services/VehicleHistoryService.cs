@@ -63,10 +63,17 @@ public class VehicleHistoryService
     }
 
     #region Helper Methods
+    private static List<Waypoint> GetFilteredAndSortedWaypoints(
+        List<Waypoint> waypoints,
+        int startGpsTime,
+        int endGpsTime)
+    {
+        return waypoints
+            .Where(w => w.GpsTime >= startGpsTime && w.GpsTime <= endGpsTime)
+            .OrderBy(w => w.GpsTime)
+            .ToList();
+    }
 
-    /// <summary>
-    /// Validate inputs and adjust time range if needed
-    /// </summary>
     private static void ValidateInputs(string vehicleId, DateTime startTime, ref DateTime endTime)
     {
         if (string.IsNullOrWhiteSpace(vehicleId))
@@ -84,10 +91,6 @@ public class VehicleHistoryService
             throw new ArgumentException("Start time must be before end time. Please provide a valid time range.");
         }
     }
-
-    /// <summary>
-    /// Create an empty history result when no waypoints are found
-    /// </summary>
     private static VehicleHistoryResult CreateEmptyHistoryResult(string vehicleId, DateTime startTime, DateTime endTime)
     {
         return new VehicleHistoryResult
@@ -107,10 +110,6 @@ public class VehicleHistoryService
         };
     }
 
-    /// <summary>
-    /// Convert waypoints to summary format with proper unit conversions
-    /// Includes cumulative distance calculation and vehicle status determination
-    /// </summary>
     private List<WaypointSummary> ConvertToWaypointSummaries(List<Waypoint> waypoints)
     {
         var summaries = new List<WaypointSummary>();
@@ -293,14 +292,9 @@ public class VehicleHistoryService
             return CreateEmptyHistoryResult(vehicleId, startTime, endTime);
         }
 
-        var sortedWaypoints = waypoints.OrderBy(w => w.GpsTime).ToList();
-
-        // Ensure waypoints are within the requested time range
         var startGpsTime = (int)(startTime - GpsEpoch).TotalSeconds;
         var endGpsTime = (int)(endTime - GpsEpoch).TotalSeconds;
-        var filteredWaypoints = sortedWaypoints
-            .Where(w => w.GpsTime >= startGpsTime && w.GpsTime <= endGpsTime)
-            .ToList();
+        var filteredWaypoints = GetFilteredAndSortedWaypoints(waypoints, startGpsTime, endGpsTime);
 
         if (!filteredWaypoints.Any())
         {
@@ -388,18 +382,9 @@ public class VehicleHistoryService
             throw new InvalidOperationException($"No waypoints found for vehicle {vehicleId}.");
         }
 
-        // Use all waypoints for distance calculation (like ConvertToWaypointSummaries does)
-        var orderedWaypoints = waypoints.OrderBy(w => w.GpsTime).ToList();
-        var firstWaypoint = orderedWaypoints.First();
-        var lastWaypoint = orderedWaypoints.Last();
-
-        // Ensure waypoints are within the requested time range and properly ordered
         var startGpsTime = (int)(startTime - GpsEpoch).TotalSeconds;
         var endGpsTime = (int)(endTime - GpsEpoch).TotalSeconds;
-        var filteredWaypoints = orderedWaypoints
-            .Where(w => w.GpsTime >= startGpsTime && w.GpsTime <= endGpsTime)
-            .OrderBy(w => w.GpsTime)
-            .ToList();
+        var filteredWaypoints = GetFilteredAndSortedWaypoints(waypoints, startGpsTime, endGpsTime);
 
         if (filteredWaypoints.Count < 2)
         {
@@ -427,16 +412,15 @@ public class VehicleHistoryService
             };
         }
 
+        var firstWaypoint = filteredWaypoints.First();
+        var lastWaypoint = filteredWaypoints.Last();
+
         var movingWaypointsFiltered = filteredWaypoints.Where(w => w.Speed > 0).ToList();
 
         if (!movingWaypointsFiltered.Any())
         {
             throw new InvalidOperationException($"No moving waypoints found for vehicle {vehicleId} in the specified time range.");
         }
-
-        // Update first/last waypoints from filtered list
-        firstWaypoint = filteredWaypoints.First();
-        lastWaypoint = filteredWaypoints.Last();
 
         // Calculate total distance using GPS-based cumulative distance from filtered waypoints
         var waypointSummaries = ConvertToWaypointSummaries(filteredWaypoints);

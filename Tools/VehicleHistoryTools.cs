@@ -1,6 +1,8 @@
 using System.ComponentModel;
+using McpVersionVer2.Models;
 using McpVersionVer2.Services;
 using McpVersionVer2.Security;
+using McpVersionVer2.Helpers;
 using ModelContextProtocol.Server;
 using static McpVersionVer2.Services.AppJsonSerializerOptions;
 
@@ -12,12 +14,21 @@ public class VehicleHistoryTools
     private readonly VehicleHistoryService _historyService;
     private readonly VehicleService _vehicleService;
     private readonly GuardrailService _guardrail;
+    private readonly IConversationContextService _contextService;
+    private readonly RequestContextService _requestContext;
 
-    public VehicleHistoryTools(VehicleHistoryService historyService, VehicleService vehicleService, GuardrailService guardrail)
+    public VehicleHistoryTools(
+        VehicleHistoryService historyService, 
+        VehicleService vehicleService, 
+        GuardrailService guardrail,
+        IConversationContextService contextService,
+        RequestContextService requestContext)
     {
         _historyService = historyService;
         _vehicleService = vehicleService;
         _guardrail = guardrail;
+        _contextService = contextService;
+        _requestContext = requestContext;
     }
 
     [McpServerTool, Description("VEHICLE TRACKING: Get GPS waypoint history for a vehicle. Supports multiple query modes: Time range (startTime+endTime), Last N hours (hours), By date (date), By plate. Returns coordinates, speed, heading, cumulative distance, and trip statistics. REJECT: non-vehicle queries.")]
@@ -30,131 +41,95 @@ public class VehicleHistoryTools
         [Description("Number of hours to look back (1-168). Alternative to startTime/endTime.")] int? hours = null,
         [Description("Date in 'dd-MM-yyyy' format (e.g., '07-01-2026'). Alternative to time range.")] string? date = null)
     {
-        var validationInput = $"{vehicleId ?? plate}{startTime ?? ""}{endTime ?? ""}{hours?.ToString() ?? ""}{date ?? ""}";
-        var userId = RateLimiter.GetTokenHash(bearerToken);
-        
-        var validation = _guardrail.ValidateQuery(validationInput, "history", userId);
-        if (!validation.IsValid)
+        string timeRange;
+        if (!string.IsNullOrEmpty(date))
         {
-            return validation.ToJsonResponse();
+            timeRange = $"date:{date}";
         }
+        else if (hours.HasValue)
+        {
+            timeRange = $"hours:{hours}";
+        }
+        else
+        {
+            timeRange = $"time:{startTime ?? ""}-{endTime ?? ""}";
+        }
+        var queryContext = $"GetVehicleHistory vehicle:{vehicleId ?? plate} {timeRange}";
 
         try
         {
-            var (isValid, errorMessage) = OutputSanitizer.ValidateVehicleQuery(validationInput);
-            if (!isValid)
-            {
-                return OutputSanitizer.CreateErrorResponse("This tool is ONLY for vehicle tracking queries. " + errorMessage, "OFF_TOPIC");
-            }
-
-            if (!OutputSanitizer.IsValidBearerToken(bearerToken))
-            {
-                return OutputSanitizer.CreateErrorResponse("Invalid bearer token format.", "INVALID_TOKEN");
-            }
-
-            var tokenHash = RateLimiter.GetTokenHash(bearerToken);
-            var (allowed, rateLimitReason) = RateLimiter.IsAllowed(tokenHash);
-            if (!allowed)
-            {
-                return OutputSanitizer.CreateErrorResponse(rateLimitReason!, "RATE_LIMIT_EXCEEDED");
-            }
-
-            DateTime start;
-            DateTime end;
-            int hoursBack = 0;
-            string? dateStr = null;
-
-            if (!string.IsNullOrEmpty(plate))
-            {
-                if (!OutputSanitizer.IsValidPlateNumber(plate))
+            return await _guardrail.ExecuteValidatedToolRequestWithContext(
+                queryContext: queryContext,
+                domain: "history",
+                bearerToken: bearerToken,
+                contextService: _contextService,
+                requestContext: _requestContext,
+                action: async (token) => 
                 {
-                    return OutputSanitizer.CreateErrorResponse("Invalid license plate format.", "INVALID_PLATE");
-                }
+                    DateTime start = DateTime.UtcNow;
+                    DateTime end = DateTime.UtcNow;
+                    
+                    if (!string.IsNullOrEmpty(plate))
+                    {
+                        if (!OutputSanitizer.IsValidPlateNumber(plate))
+                        {
+                            throw new ArgumentException("Invalid license plate format.", nameof(plate));
+                        }
 
-                var vehicle = await _vehicleService.GetVehicleByPlateAsync(bearerToken, plate)
-                    .SafeGetSingleAsync("vehicle", $"plate '{plate}'");
-                vehicleId = vehicle.Id;
-            }
+                        var vehicle = await _vehicleService.GetVehicleByPlateAsync(token, plate)
+                            .SafeGetSingleAsync("vehicle", $"plate '{plate}'");
+                        vehicleId = vehicle!.Id;
+                    }
 
-            if (!string.IsNullOrEmpty(date))
-            {
-                if (!DateTime.TryParseExact(date, "dd-MM-yyyy", null, System.Globalization.DateTimeStyles.None, out var targetDate))
-                {
-                    return System.Text.Json.JsonSerializer.Serialize(new { error = "Invalid date format. Use 'dd-MM-yyyy' (e.g., '07-01-2026')" }, Default);
-                }
-                start = targetDate.Date;
-                end = start.AddDays(1).AddSeconds(-1);
-                dateStr = date;
-            }
-            else if (hours.HasValue)
-            {
-                if (hours.Value <= 0 || hours.Value > 168)
-                {
-                    return OutputSanitizer.CreateErrorResponse("Hours must be between 1 and 168 (1 week).", "INVALID_HOURS");
-                }
-                end = DateTime.UtcNow;
-                start = end.AddHours(-hours.Value);
-                hoursBack = hours.Value;
-            }
-            else
-            {
-                if (string.IsNullOrEmpty(startTime) || string.IsNullOrEmpty(endTime))
-                {
-                    return OutputSanitizer.CreateErrorResponse("Either startTime+endTime, hours, or date must be provided.", "INVALID_TIME_RANGE");
-                }
+                    // Handle date parameter - convert dd-MM-yyyy to full day range
+                    if (!string.IsNullOrEmpty(date))
+                    {
+                        if (!DateTime.TryParseExact(date, "dd-MM-yyyy", null, System.Globalization.DateTimeStyles.None, out var dateValue))
+                        {
+                            throw new ArgumentException("Date must be in dd-MM-yyyy format (e.g., '20-01-2026').", nameof(date));
+                        }
+                        start = dateValue.Date; // Start of day
+                        end = dateValue.Date.AddDays(1).AddSeconds(-1); // End of day (23:59:59)
+                    }
+                    else if (hours.HasValue)
+                    {
+                        // Handle hours parameter - look back specified hours
+                        end = DateTime.UtcNow;
+                        start = end.AddHours(-hours.Value);
+                        if (hours.Value < 1 || hours.Value > 168)
+                        {
+                            throw new ArgumentException("Hours parameter must be between 1 and 168.", nameof(hours));
+                        }
+                    }
+                    else
+                    {
+                        if (!string.IsNullOrEmpty(startTime) && !DateTime.TryParse(startTime, out start))
+                        {
+                            throw new ArgumentException("Invalid start time format.", nameof(startTime));
+                        }
 
-                if (!OutputSanitizer.IsValidDateTimeString(startTime) || !DateTime.TryParse(startTime, out start))
-                {
-                    return OutputSanitizer.CreateErrorResponse("Invalid start time format. Use ISO 8601 format (e.g., '2026-01-07T00:00:00')", "INVALID_START_TIME");
-                }
+                        if (!string.IsNullOrEmpty(endTime) && !DateTime.TryParse(endTime, out end))
+                        {
+                            throw new ArgumentException("Invalid end time format.", nameof(endTime));
+                        }
+                    }
 
-                if (!OutputSanitizer.IsValidDateTimeString(endTime) || !DateTime.TryParse(endTime, out end))
-                {
-                    return OutputSanitizer.CreateErrorResponse("Invalid end time format. Use ISO 8601 format (e.g., '2026-01-07T23:59:59')", "INVALID_END_TIME");
-                }
-            }
+                    if (!string.IsNullOrEmpty(vehicleId) && !OutputSanitizer.IsValidVehicleId(vehicleId))
+                    {
+                        throw new ArgumentException("Invalid vehicle ID format.", nameof(vehicleId));
+                    }
 
-            if (!string.IsNullOrEmpty(vehicleId) && !OutputSanitizer.IsValidVehicleId(vehicleId))
-            {
-                return OutputSanitizer.CreateErrorResponse("Invalid vehicle ID format.", "INVALID_VEHICLE_ID");
-            }
-
-            var result = await _historyService.GetVehicleHistoryAsync(bearerToken, vehicleId!, start, end);
-            result.HoursBack = hoursBack;
-            result.Date = dateStr;
-
-            if (result.TotalWaypoints == 0)
-            {
-                var queryDesc = !string.IsNullOrEmpty(date) ? $"on {date}" :
-                               hours.HasValue ? $"in the last {hours} hours" :
-                               $"between {start:yyyy-MM-dd HH:mm} and {end:yyyy-MM-dd HH:mm}";
-                return System.Text.Json.JsonSerializer.Serialize(new { message = $"No waypoints found for vehicle {vehicleId} {queryDesc}." }, Default);
-            }
-
-            return System.Text.Json.JsonSerializer.Serialize(new
-            {
-                vehicleId = result.VehicleId,
-                startTime = result.StartTime,
-                endTime = result.EndTime,
-                hoursBack = result.HoursBack,
-                date = result.Date,
-                summary = new
-                {
-                    totalWaypoints = result.TotalWaypoints,
-                    movingWaypoints = result.MovingWaypoints,
-                    totalDistanceKm = result.TotalDistanceKm,
-                    totalRunningTimeHours = result.TotalRunningTimeHours,
-                    totalStopTimeHours = result.TotalStopTimeHours,
-                    averageSpeedKmh = result.AverageSpeedKmh,
-                    highestSpeedKmh = result.HighestSpeedKmh,
-                    stopCount = result.AmountOfTimeStop
+                    return await _historyService.GetVehicleHistoryAsync(token, vehicleId!, start, end);
                 },
-                waypoints = result.Waypoints
-            }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                successResponse: (result) => System.Text.Json.JsonSerializer.Serialize(result, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch (ToolValidationException ex)
+        {
+            return ex.ErrorResponse;
         }
         catch (Exception ex)
         {
-            return OutputSanitizer.CreateErrorResponse(ex.Message, "INTERNAL_ERROR");
+            return System.Text.Json.JsonSerializer.Serialize(new { error = ex.Message }, Default);
         }
     }
 
@@ -165,82 +140,40 @@ public class VehicleHistoryTools
         [Description("Start time in ISO 8601 format (e.g., '2026-01-07T00:00:00')")] string startTime,
         [Description("End time in ISO 8601 format (e.g., '2026-01-07T23:59:59')")] string endTime)
     {
-        var queryContext = $"trip summary vehicle:{vehicleId} from:{startTime} to:{endTime}";
-        var userId = RateLimiter.GetTokenHash(bearerToken);
-        
-        var validation = _guardrail.ValidateQuery(queryContext, "history", userId);
-        if (!validation.IsValid)
-        {
-            return validation.ToJsonResponse();
-        }
+        var queryContext = $"GetVehicleTripSummary vehicle:{vehicleId} from:{startTime} to:{endTime}";
 
         try
         {
-            var (isValid, errorMessage) = OutputSanitizer.ValidateVehicleQuery(vehicleId + startTime + endTime);
-            if (!isValid)
-            {
-                return OutputSanitizer.CreateErrorResponse("This tool is ONLY for vehicle tracking queries. " + errorMessage, "OFF_TOPIC");
-            }
-
-            if (!OutputSanitizer.IsValidBearerToken(bearerToken))
-            {
-                return OutputSanitizer.CreateErrorResponse("Invalid bearer token format.", "INVALID_TOKEN");
-            }
-
-            var tokenHash = RateLimiter.GetTokenHash(bearerToken);
-            var (allowed, rateLimitReason) = RateLimiter.IsAllowed(tokenHash);
-            if (!allowed)
-            {
-                return OutputSanitizer.CreateErrorResponse(rateLimitReason!, "RATE_LIMIT_EXCEEDED");
-            }
-
-            if (!OutputSanitizer.IsValidVehicleId(vehicleId))
-            {
-                return OutputSanitizer.CreateErrorResponse("Invalid vehicle ID format.", "INVALID_VEHICLE_ID");
-            }
-
-            if (!DateTime.TryParse(startTime, out var start))
-            {
-                return System.Text.Json.JsonSerializer.Serialize(new { error = "Invalid start time format" }, Default);
-            }
-
-            if (!DateTime.TryParse(endTime, out var end))
-            {
-                return System.Text.Json.JsonSerializer.Serialize(new { error = "Invalid end time format" }, Default);
-            }
-
-            var summary = await _historyService.GetVehicleTripSummaryAsync(bearerToken, vehicleId, start, end);
-
-            return System.Text.Json.JsonSerializer.Serialize(new
-            {
-                vehicleId = summary.VehicleId,
-                startTime = summary.StartTime,
-                endTime = summary.EndTime,
-                statistics = new
+            return await _guardrail.ExecuteValidatedToolRequestWithContext(
+                queryContext: queryContext,
+                domain: "history",
+                bearerToken: bearerToken,
+                contextService: _contextService,
+                requestContext: _requestContext,
+                action: async (token) => 
                 {
-                    totalDistanceKm = summary.TotalDistanceKm,
-                    duration = summary.DurationHours,
-                    averageSpeedKmh = summary.AverageSpeedKmh,
-                    maxSpeedKmh = summary.MaxSpeedKmh,
-                    stopCount = summary.StopCount,
-                    runningTime = TimeSpan.FromHours(summary.AmountOfTimeRunning).ToString(@"hh\:mm\:ss"),
-                    stopTime = TimeSpan.FromHours(summary.AmountOfTimeStop).ToString(@"hh\:mm\:ss"),
-                    totalWaypoints = summary.TotalWaypoints,
-                    movingWaypoints = summary.MovingWaypoints
+                    if (!OutputSanitizer.IsValidVehicleId(vehicleId))
+                    {
+                        throw new ArgumentException("Invalid vehicle ID format.", nameof(vehicleId));
+                    }
+
+                    if (!DateTime.TryParse(startTime, out var start))
+                    {
+                        throw new ArgumentException("Invalid start time format", nameof(startTime));
+                    }
+
+                    if (!DateTime.TryParse(endTime, out var end))
+                    {
+                        throw new ArgumentException("Invalid end time format", nameof(endTime));
+                    }
+
+                    return await _historyService.GetVehicleTripSummaryAsync(token, vehicleId, start, end);
                 },
-                startLocation = new
-                {
-                    latitude = summary.StartLatitude,
-                    longitude = summary.StartLongitude,
-                    info = summary.StartInfo
-                },
-                endLocation = new
-                {
-                    latitude = summary.EndLatitude,
-                    longitude = summary.EndLongitude,
-                    info = summary.EndInfo
-                }
-            }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                successResponse: (result) => System.Text.Json.JsonSerializer.Serialize(result, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch (ToolValidationException ex)
+        {
+            return ex.ErrorResponse;
         }
         catch (Exception ex)
         {

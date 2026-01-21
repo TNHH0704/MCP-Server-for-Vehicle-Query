@@ -3,49 +3,56 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using McpVersionVer2.Models;
 using McpVersionVer2.Services;
+using McpVersionVer2.Tools;
+using Microsoft.Extensions.Caching.Memory;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
-
+builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient();
-
-// Guardrail services
+builder.Services.Configure<ConversationConfig>(builder.Configuration.GetSection("ConversationContext"));
+builder.Services.AddSingleton<IConversationContextService, InMemoryConversationContextService>();
+builder.Services.AddSingleton<ISessionStorageService, InMemorySessionStorageService>();
+builder.Services.AddScoped<RequestContextService>();
+builder.Services.AddTransient<ContextTools>();
 builder.Services.AddSingleton<AuditLogService>();
+builder.Services.AddSingleton<GitHubOpenAIService>();
 builder.Services.AddSingleton<GuardrailService>();
-
 builder.Services.AddTransient<VehicleMapperService>();
 
-builder.Services.AddTransient<VehicleStatusService>(sp => 
+builder.Services.AddTransient<VehicleStatusService>(sp =>
     new VehicleStatusService(
-        sp.GetRequiredService<IHttpClientFactory>().CreateClient(), 
+        sp.GetRequiredService<IHttpClientFactory>().CreateClient(),
         sp.GetRequiredService<IConfiguration>()
     ));
 
 builder.Services.AddTransient<VehicleStatusMapperService>();
 
-builder.Services.AddTransient<WaypointService>(sp => 
+builder.Services.AddTransient<WaypointService>(sp =>
     new WaypointService(
-        sp.GetRequiredService<IHttpClientFactory>().CreateClient(), 
-        sp.GetRequiredService<ILogger<WaypointService>>(), 
-        sp.GetRequiredService<IConfiguration>()
+        sp.GetRequiredService<IHttpClientFactory>().CreateClient(),
+        sp.GetRequiredService<ILogger<WaypointService>>(),
+        sp.GetRequiredService<IConfiguration>(),
+        sp.GetRequiredService<IMemoryCache>()
     ));
 
 builder.Services.AddTransient<VehicleHistoryService>();
 
-builder.Services.AddTransient<AuthService>(sp => 
+builder.Services.AddTransient<AuthService>(sp =>
     new AuthService(
-        sp.GetRequiredService<IHttpClientFactory>().CreateClient(), 
-        sp.GetRequiredService<ILogger<AuthService>>(), 
+        sp.GetRequiredService<IHttpClientFactory>().CreateClient(),
+        sp.GetRequiredService<ILogger<AuthService>>(),
         sp.GetRequiredService<IConfiguration>()
     ));
 
-builder.Services.AddTransient<VehicleService>(sp => 
+builder.Services.AddTransient<VehicleService>(sp =>
     new VehicleService(
-        sp.GetRequiredService<IHttpClientFactory>().CreateClient(), 
-        sp.GetRequiredService<ILogger<VehicleService>>(), 
+        sp.GetRequiredService<IHttpClientFactory>().CreateClient(),
+        sp.GetRequiredService<ILogger<VehicleService>>(),
         sp.GetRequiredService<IConfiguration>()
     ));
 
@@ -54,7 +61,7 @@ builder.Services.AddTransient<GisUtil>();
 builder.Services.AddMcpServer()
     .WithPromptsFromAssembly()
     .WithHttpTransport()
-    .WithToolsFromAssembly(); 
+    .WithToolsFromAssembly();
 
 var app = builder.Build();
 

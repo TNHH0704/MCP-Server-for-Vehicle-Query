@@ -10,6 +10,7 @@ namespace McpVersionVer2.Services;
 public class GuardrailService
 {
     private readonly AuditLogService _auditLog;
+    private readonly GitHubOpenAIService _openAIService;
     private readonly ILogger<GuardrailService> _logger;
 
     private static readonly HashSet<string> EducationalKeywords = new(StringComparer.OrdinalIgnoreCase)
@@ -35,9 +36,10 @@ public class GuardrailService
 
     private readonly Dictionary<string, HashSet<string>> _domainTopics;
 
-    public GuardrailService(AuditLogService auditLog, ILogger<GuardrailService> logger)
+    public GuardrailService(AuditLogService auditLog, GitHubOpenAIService openAIService, ILogger<GuardrailService> logger)
     {
         _auditLog = auditLog;
+        _openAIService = openAIService;
         _logger = logger;
 
         _domainTopics = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase)
@@ -89,7 +91,18 @@ public class GuardrailService
             );
         }
 
-        // Check 2: Is this an educational/deceptive query?
+        // Check 2: Security validations (always run first for safety)
+        var securityCheck = ValidateSecurity(query);
+        if (!securityCheck.isValid)
+        {
+            _auditLog.LogBlockedQuery(userId, toolDomain, query, "SECURITY_VIOLATION");
+            return GuardrailResult.Failed(
+                errorCode: "SECURITY_VIOLATION",
+                message: securityCheck.errorMessage ?? "Invalid input detected."
+            );
+        }
+
+        // Check 3: Is this an educational/deceptive query?
         var hasEducational = ContainsAnyKeyword(lowerQuery, EducationalKeywords);
         var hasDataPattern = ContainsAnyPattern(lowerQuery, DataPatterns);
 
@@ -102,7 +115,22 @@ public class GuardrailService
             );
         }
 
-        // Check 3: Security validations
+        return GuardrailResult.Passed();
+    }
+
+    /// <summary>
+    /// Enhanced validation with AI-powered guardrails and fallback to rule-based validation
+    /// </summary>
+    public async Task<GuardrailResult> ValidateQueryWithAIAsync(string query, string toolDomain, string? userId = null)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return GuardrailResult.Passed();
+        }
+
+        var lowerQuery = query.ToLowerInvariant();
+
+        // Always run security validation first (non-AI, critical)
         var securityCheck = ValidateSecurity(query);
         if (!securityCheck.isValid)
         {
@@ -113,7 +141,35 @@ public class GuardrailService
             );
         }
 
-        return GuardrailResult.Passed();
+        // Try AI validation first
+        try
+        {
+            var aiResult = await _openAIService.ValidateIntentAsync(query, toolDomain, userId);
+            if (aiResult != null)
+            {
+                // Log AI validation decision
+                if (!aiResult.IsValid)
+                {
+                    _auditLog.LogBlockedQuery(userId, toolDomain, query, $"AI_BLOCKED_{aiResult.ErrorCode}");
+                    _logger.LogInformation("AI validation blocked query in domain {Domain}: {Reason}", 
+                        toolDomain, aiResult.ErrorMessage);
+                }
+                else
+                {
+                    _logger.LogDebug("AI validation passed query in domain {Domain}", toolDomain);
+                }
+                
+                return aiResult;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "AI validation failed, falling back to rule-based validation");
+        }
+
+        // Fallback to rule-based validation
+        _logger.LogInformation("Using fallback rule-based validation for domain {Domain}", toolDomain);
+        return ValidateQuery(query, toolDomain, userId);
     }
 
     private bool ContainsAllowedTopic(string query, string domain)
@@ -187,8 +243,26 @@ public class GuardrailResult
     public string? ErrorCode { get; private set; }
     public string? ErrorMessage { get; private set; }
     public string[]? AllowedTopics { get; private set; }
+    
+    // AI validation metadata
+    public bool UsedAIVerdict { get; private set; }
+    public double? Confidence { get; private set; }
+    public string? RiskLevel { get; private set; }
+    public string? ValidationSource { get; private set; }
 
-    public static GuardrailResult Passed() => new() { IsValid = true };
+    public static GuardrailResult Passed() => new() { 
+        IsValid = true,
+        ValidationSource = "RuleBased"
+    };
+
+    public static GuardrailResult PassedWithAI(double confidence, string riskLevel) => new()
+    {
+        IsValid = true,
+        UsedAIVerdict = true,
+        Confidence = confidence,
+        RiskLevel = riskLevel,
+        ValidationSource = "AI"
+    };
 
     public static GuardrailResult Failed(string errorCode, string message, string[]? allowedTopics = null)
     {
@@ -197,7 +271,23 @@ public class GuardrailResult
             IsValid = false,
             ErrorCode = errorCode,
             ErrorMessage = message,
-            AllowedTopics = allowedTopics
+            AllowedTopics = allowedTopics,
+            ValidationSource = "RuleBased"
+        };
+    }
+
+    public static GuardrailResult FailedWithAI(string errorCode, string message, double confidence, string riskLevel, string[]? allowedTopics = null)
+    {
+        return new GuardrailResult
+        {
+            IsValid = false,
+            ErrorCode = errorCode,
+            ErrorMessage = message,
+            AllowedTopics = allowedTopics,
+            UsedAIVerdict = true,
+            Confidence = confidence,
+            RiskLevel = riskLevel,
+            ValidationSource = "AI"
         };
     }
 

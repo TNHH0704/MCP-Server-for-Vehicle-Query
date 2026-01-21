@@ -96,6 +96,7 @@ public class VehicleStatusService
     /// <summary>
     /// Get moving vehicles (status = 2)
     /// </summary>
+    [Obsolete("Use GetVehicleStatusesAsync with FilterByStatus for better performance")]
     public async Task<List<VehicleStatus>> GetMovingVehiclesAsync(string bearerToken)
     {
         var vehicles = await GetVehicleStatusesAsync(bearerToken);
@@ -105,6 +106,7 @@ public class VehicleStatusService
     /// <summary>
     /// Get stopped vehicles (status = 0)
     /// </summary>
+    [Obsolete("Use GetVehicleStatusesAsync with FilterByStatus for better performance")]
     public async Task<List<VehicleStatus>> GetStoppedVehiclesAsync(string bearerToken)
     {
         var vehicles = await GetVehicleStatusesAsync(bearerToken);
@@ -114,6 +116,7 @@ public class VehicleStatusService
     /// <summary>
     /// Get idle vehicles (status = 1)
     /// </summary>
+    [Obsolete("Use GetVehicleStatusesAsync with FilterByStatus for better performance")]
     public async Task<List<VehicleStatus>> GetIdleVehiclesAsync(string bearerToken)
     {
         var vehicles = await GetVehicleStatusesAsync(bearerToken);
@@ -123,10 +126,30 @@ public class VehicleStatusService
     /// <summary>
     /// Get vehicles exceeding their max speed
     /// </summary>
+    [Obsolete("Use GetVehicleStatusesAsync with FilterByStatus for better performance")]
     public async Task<List<VehicleStatus>> GetOverSpeedingVehiclesAsync(string bearerToken)
     {
         var vehicles = await GetVehicleStatusesAsync(bearerToken);
         return vehicles.Where(v => v.MaxSpeed > 0 && v.Speed > v.MaxSpeed).ToList();
+    }
+
+    /// <summary>
+    /// Filter vehicles by status without making additional API calls
+    /// Use this method after fetching vehicles with GetVehicleStatusesAsync
+    /// </summary>
+    public List<VehicleStatus> FilterByStatus(List<VehicleStatus> vehicles, string? statusFilter)
+    {
+        if (string.IsNullOrEmpty(statusFilter))
+            return vehicles;
+
+        return statusFilter.ToLowerInvariant() switch
+        {
+            "moving" => vehicles.Where(v => v.Status == 2).ToList(),
+            "stopped" => vehicles.Where(v => v.Status == 0).ToList(),
+            "idle" => vehicles.Where(v => v.Status == 1).ToList(),
+            "overspeeding" => vehicles.Where(v => v.MaxSpeed > 0 && v.Speed > v.MaxSpeed).ToList(),
+            _ => vehicles
+        };
     }
 
     /// <summary>

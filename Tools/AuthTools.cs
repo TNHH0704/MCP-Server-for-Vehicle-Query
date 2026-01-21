@@ -26,7 +26,7 @@ public class AuthTools
         [Description("Refresh token received during login or previous refresh")] string refreshToken)
     {
         var queryContext = "refresh token auth";
-        var validation = _guardrail.ValidateQuery(queryContext, "auth", "auth_tool");
+        var validation = await _guardrail.ValidateQueryWithAIAsync(queryContext, "auth", "auth_tool");
         if (!validation.IsValid)
         {
             return validation.ToJsonResponse();

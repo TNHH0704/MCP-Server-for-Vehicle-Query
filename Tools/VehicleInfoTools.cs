@@ -3,6 +3,7 @@ using System.Linq;
 using McpVersionVer2.Models;
 using McpVersionVer2.Services;
 using McpVersionVer2.Security;
+using McpVersionVer2.Helpers;
 using ModelContextProtocol.Server;
 using static McpVersionVer2.Services.AppJsonSerializerOptions;
 
@@ -14,89 +15,57 @@ public class VehicleInfoTools
     private readonly VehicleService _vehicleService;
     private readonly VehicleMapperService _mapper;
     private readonly GuardrailService _guardrail;
+    private readonly IConversationContextService _contextService;
+    private readonly RequestContextService _requestContext;
 
-    public VehicleInfoTools(VehicleService vehicleService, VehicleMapperService mapper, GuardrailService guardrail)
+    public VehicleInfoTools(
+        VehicleService vehicleService, 
+        VehicleMapperService mapper, 
+        GuardrailService guardrail,
+        IConversationContextService contextService,
+        RequestContextService requestContext)
     {
         _vehicleService = vehicleService;
         _mapper = mapper;
         _guardrail = guardrail;
+        _contextService = contextService;
+        _requestContext = requestContext;
     }
 
-    [McpServerTool, Description("VEHICLE REGISTRY: Get vehicle information from the fleet registry. Supports: all vehicles, by plate, by ID, by group/company name. Returns plate, type, group, max speed, and other vehicle details. REJECT: non-vehicle queries.")]
+    [McpServerTool, Description("VEHICLE REGISTRY: Get vehicle information from fleet registry. Supports: all vehicles, by plate, by ID, by group/company name. Returns plate, type, group, max speed, and other vehicle details. REJECT: non-vehicle queries.")]
     public async Task<string> GetVehicleInfo(
         [Description("Bearer token")] string bearerToken,
         [Description("Filter by license plate number. Optional.")] string? plate = null,
         [Description("Filter by vehicle ID. Optional.")] string? id = null,
         [Description("Filter by group/company name. Optional.")] string? group = null)
     {
-        var queryContext = $"plate:{plate ?? ""} id:{id ?? ""} group:{group ?? ""}";
-        var userId = RateLimiter.GetTokenHash(bearerToken);
-        
-        var validation = _guardrail.ValidateQuery(queryContext, "vehicle_registry", userId);
-        if (!validation.IsValid)
-        {
-            return validation.ToJsonResponse();
-        }
+        var queryContext = $"GetVehicleInfo plate:{plate ?? ""} id:{id ?? ""} group:{group ?? ""}";
 
         try
         {
-            var (isValid, errorMessage) = OutputSanitizer.ValidateVehicleQuery(queryContext);
-            if (!isValid)
-            {
-                return OutputSanitizer.CreateErrorResponse("This tool is ONLY for vehicle tracking queries. " + errorMessage, "OFF_TOPIC");
-            }
-
-            if (!OutputSanitizer.IsValidBearerToken(bearerToken))
-            {
-                return OutputSanitizer.CreateErrorResponse("Invalid bearer token format.", "INVALID_TOKEN");
-            }
-
-            var tokenHash = RateLimiter.GetTokenHash(bearerToken);
-            var (allowed, rateLimitReason) = RateLimiter.IsAllowed(tokenHash);
-            if (!allowed)
-            {
-                return OutputSanitizer.CreateErrorResponse(rateLimitReason!, "RATE_LIMIT_EXCEEDED");
-            }
-
-            List<VehicleResponse> vehicles;
-
-            if (!string.IsNullOrEmpty(plate))
-            {
-                var vehicle = await _vehicleService.GetVehicleByPlateAsync(bearerToken, plate)
-                    .SafeGetSingleAsync("vehicle", $"plate '{plate}'");
-                vehicles = new List<VehicleResponse> { vehicle };
-            }
-            else if (!string.IsNullOrEmpty(id))
-            {
-                var vehicle = await _vehicleService.GetVehicleByIdAsync(bearerToken, id)
-                    .SafeGetSingleAsync("vehicle", $"ID '{id}'");
-                vehicles = new List<VehicleResponse> { vehicle };
-            }
-            else if (!string.IsNullOrEmpty(group))
-            {
-                vehicles = await _vehicleService.GetVehiclesByCompanyAsync(bearerToken, group);
-            }
-            else
-            {
-                vehicles = await _vehicleService.GetVehiclesAsync(bearerToken);
-            }
-
-            if (vehicles == null || !vehicles.Any())
-            {
-                return System.Text.Json.JsonSerializer.Serialize(new { message = "No vehicles found in the fleet." }, Default);
-            }
-
-            object result;
-            if (string.IsNullOrEmpty(plate) && string.IsNullOrEmpty(id) && string.IsNullOrEmpty(group))
-            {
-                result = _mapper.MapToBasicList(vehicles);
-            }
-            else
-            {
-                result = _mapper.MapToDtos(vehicles);
-            }
-
-            return System.Text.Json.JsonSerializer.Serialize(result, Default);
+            return await _guardrail.ExecuteValidatedToolRequestWithContext(
+                queryContext: queryContext,
+                domain: "vehicle_registry",
+                bearerToken: bearerToken,
+                contextService: _contextService,
+                requestContext: _requestContext,
+                action: async (token) => 
+                {
+                    var vehicles = await _vehicleService.GetVehiclesWithFilterAsync(token, plate, id, group);
+                    vehicles.RequireNonEmptyResult("vehicles");
+                    return vehicles;
+                },
+                successResponse: (vehicles) => 
+                {
+                    object result = (plate == null && id == null && group == null)
+                        ? _mapper.MapToBasicList(vehicles)
+                        : _mapper.MapToDtos(vehicles);
+                    return System.Text.Json.JsonSerializer.Serialize(result, Default);
+                });
+        }
+        catch (ToolValidationException ex)
+        {
+            return ex.ErrorResponse;
         }
         catch (Exception ex)
         {
@@ -108,44 +77,27 @@ public class VehicleInfoTools
     public async Task<string> GetFleetStatistics(
         [Description("Bearer token")] string bearerToken)
     {
-        var queryContext = "fleet statistics";
-        var userId = RateLimiter.GetTokenHash(bearerToken);
-        
-        var validation = _guardrail.ValidateQuery(queryContext, "vehicle_registry", userId);
-        if (!validation.IsValid)
-        {
-            return validation.ToJsonResponse();
-        }
+        var queryContext = "GetFleetStatistics fleet statistics";
 
         try
         {
-            var (isValid, errorMessage) = OutputSanitizer.ValidateVehicleQuery("");
-            if (!isValid)
-            {
-                return OutputSanitizer.CreateErrorResponse("This tool is ONLY for vehicle tracking queries. " + errorMessage, "OFF_TOPIC");
-            }
-
-            if (!OutputSanitizer.IsValidBearerToken(bearerToken))
-            {
-                return OutputSanitizer.CreateErrorResponse("Invalid bearer token format.", "INVALID_TOKEN");
-            }
-
-            var tokenHash = RateLimiter.GetTokenHash(bearerToken);
-            var (allowed, rateLimitReason) = RateLimiter.IsAllowed(tokenHash);
-            if (!allowed)
-            {
-                return OutputSanitizer.CreateErrorResponse(rateLimitReason!, "RATE_LIMIT_EXCEEDED");
-            }
-
-            var vehicles = await _vehicleService.GetVehiclesAsync(bearerToken)
-                .SafeGetListAsync("vehicles");
-            if (!vehicles.Any())
-            {
-                return System.Text.Json.JsonSerializer.Serialize(new { message = "No vehicles found in the fleet. Unable to generate statistics." }, Default);
-            }
-
-            var stats = _mapper.GenerateStatistics(vehicles);
-            return System.Text.Json.JsonSerializer.Serialize(stats, Default);
+            return await _guardrail.ExecuteValidatedToolRequestWithContext(
+                queryContext: queryContext,
+                domain: "vehicle_registry",
+                bearerToken: bearerToken,
+                contextService: _contextService,
+                requestContext: _requestContext,
+                action: async (token) => 
+                {
+                    var vehicles = await _vehicleService.GetVehiclesWithFilterAsync(token);
+                    vehicles.RequireNonEmptyResult("vehicles");
+                    return _mapper.GenerateStatistics(vehicles);
+                },
+                successResponse: (stats) => System.Text.Json.JsonSerializer.Serialize(stats, Default));
+        }
+        catch (ToolValidationException ex)
+        {
+            return ex.ErrorResponse;
         }
         catch (Exception ex)
         {
@@ -157,51 +109,39 @@ public class VehicleInfoTools
     public async Task<string> GetVehiclesWithExpiredCompliance(
         [Description("Bearer token")] string bearerToken)
     {
-        var queryContext = "compliance insurance registry expired";
-        var userId = RateLimiter.GetTokenHash(bearerToken);
-        
-        var validation = _guardrail.ValidateQuery(queryContext, "vehicle_registry", userId);
-        if (!validation.IsValid)
-        {
-            return validation.ToJsonResponse();
-        }
+        var queryContext = "GetVehiclesWithExpiredCompliance compliance insurance registry expired";
 
         try
         {
-            var (isValid, errorMessage) = OutputSanitizer.ValidateVehicleQuery("");
-            if (!isValid)
-            {
-                return OutputSanitizer.CreateErrorResponse("This tool is ONLY for vehicle tracking queries. " + errorMessage, "OFF_TOPIC");
-            }
-
-            if (!OutputSanitizer.IsValidBearerToken(bearerToken))
-            {
-                return OutputSanitizer.CreateErrorResponse("Invalid bearer token format.", "INVALID_TOKEN");
-            }
-
-            var tokenHash = RateLimiter.GetTokenHash(bearerToken);
-            var (allowed, rateLimitReason) = RateLimiter.IsAllowed(tokenHash);
-            if (!allowed)
-            {
-                return OutputSanitizer.CreateErrorResponse(rateLimitReason!, "RATE_LIMIT_EXCEEDED");
-            }
-
-            var vehicles = await _vehicleService.GetVehiclesWithExpiredComplianceAsync(bearerToken);
-            var dtos = _mapper.MapToDtos(vehicles);
-            return System.Text.Json.JsonSerializer.Serialize(new
-            {
-                totalCount = dtos.Count,
-                vehicles = dtos.Select(d => new
+            return await _guardrail.ExecuteValidatedToolRequestWithContext(
+                queryContext: queryContext,
+                domain: "vehicle_registry",
+                bearerToken: bearerToken,
+                contextService: _contextService,
+                requestContext: _requestContext,
+                action: async (token) => 
                 {
-                    plate = d.Plate,
-                    displayName = d.DisplayName,
-                    company = d.Company.Name,
-                    insuranceExpired = d.Dates.IsInsuranceExpired,
-                    registryExpired = d.Dates.IsRegistryExpired,
-                    insuranceExpiresIn = d.Dates.DaysUntilInsuranceExpires,
-                    registryExpiresIn = d.Dates.DaysUntilRegistryExpires
-                })
-            }, Default);
+                    var vehicles = await _vehicleService.GetVehiclesWithFilterAsync(token);
+                    return _mapper.MapToDtos(vehicles);
+                },
+                successResponse: (dtos) => System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    totalCount = dtos.Count,
+                    vehicles = dtos.Select(d => new
+                    {
+                        plate = d.Plate,
+                        displayName = d.DisplayName,
+                        company = d.Company.Name,
+                        insuranceExpired = d.Dates.IsInsuranceExpired,
+                        registryExpired = d.Dates.IsRegistryExpired,
+                        insuranceExpiresIn = d.Dates.DaysUntilInsuranceExpires,
+                        registryExpiresIn = d.Dates.DaysUntilRegistryExpires
+                    })
+                }, Default));
+        }
+        catch (ToolValidationException ex)
+        {
+            return ex.ErrorResponse;
         }
         catch (Exception ex)
         {
