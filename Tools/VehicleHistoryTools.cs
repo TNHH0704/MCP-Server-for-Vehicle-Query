@@ -13,21 +13,22 @@ public class VehicleHistoryTools
 {
     private readonly VehicleHistoryService _historyService;
     private readonly VehicleService _vehicleService;
-    private readonly GuardrailService _guardrail;
+    private readonly SecurityValidationService _securityService;
     private readonly IConversationContextService _contextService;
     private readonly RequestContextService _requestContext;
 
     public VehicleHistoryTools(
         VehicleHistoryService historyService, 
         VehicleService vehicleService, 
-        GuardrailService guardrail,
+        SecurityValidationService securityService,
         IConversationContextService contextService,
         RequestContextService requestContext)
     {
         _historyService = historyService;
         _vehicleService = vehicleService;
-        _guardrail = guardrail;
+        _securityService = securityService;
         _contextService = contextService;
+        _requestContext = requestContext;
         _requestContext = requestContext;
     }
 
@@ -58,7 +59,7 @@ public class VehicleHistoryTools
 
         try
         {
-            return await _guardrail.ExecuteValidatedToolRequestWithContext(
+            return await _securityService.ExecuteValidatedToolRequestWithContext(
                 queryContext: queryContext,
                 domain: "history",
                 bearerToken: bearerToken,
@@ -71,7 +72,7 @@ public class VehicleHistoryTools
                     
                     if (!string.IsNullOrEmpty(plate))
                     {
-                        if (!OutputSanitizer.IsValidPlateNumber(plate))
+                        if (!_securityService.IsValidPlateNumber(plate))
                         {
                             throw new ArgumentException("Invalid license plate format.", nameof(plate));
                         }
@@ -81,19 +82,17 @@ public class VehicleHistoryTools
                         vehicleId = vehicle!.Id;
                     }
 
-                    // Handle date parameter - convert dd-MM-yyyy to full day range
                     if (!string.IsNullOrEmpty(date))
                     {
                         if (!DateTime.TryParseExact(date, "dd-MM-yyyy", null, System.Globalization.DateTimeStyles.None, out var dateValue))
                         {
                             throw new ArgumentException("Date must be in dd-MM-yyyy format (e.g., '20-01-2026').", nameof(date));
                         }
-                        start = dateValue.Date; // Start of day
-                        end = dateValue.Date.AddDays(1).AddSeconds(-1); // End of day (23:59:59)
+                        start = dateValue.Date; 
+                        end = dateValue.Date.AddDays(1).AddSeconds(-1); 
                     }
                     else if (hours.HasValue)
                     {
-                        // Handle hours parameter - look back specified hours
                         end = DateTime.UtcNow;
                         start = end.AddHours(-hours.Value);
                         if (hours.Value < 1 || hours.Value > 168)
@@ -114,7 +113,7 @@ public class VehicleHistoryTools
                         }
                     }
 
-                    if (!string.IsNullOrEmpty(vehicleId) && !OutputSanitizer.IsValidVehicleId(vehicleId))
+                    if (!string.IsNullOrEmpty(vehicleId) && !_securityService.IsValidVehicleId(vehicleId))
                     {
                         throw new ArgumentException("Invalid vehicle ID format.", nameof(vehicleId));
                     }
@@ -144,7 +143,7 @@ public class VehicleHistoryTools
 
         try
         {
-            return await _guardrail.ExecuteValidatedToolRequestWithContext(
+            return await _securityService.ExecuteValidatedToolRequestWithContext(
                 queryContext: queryContext,
                 domain: "history",
                 bearerToken: bearerToken,
@@ -152,7 +151,7 @@ public class VehicleHistoryTools
                 requestContext: _requestContext,
                 action: async (token) => 
                 {
-                    if (!OutputSanitizer.IsValidVehicleId(vehicleId))
+                    if (!_securityService.IsValidVehicleId(vehicleId))
                     {
                         throw new ArgumentException("Invalid vehicle ID format.", nameof(vehicleId));
                     }

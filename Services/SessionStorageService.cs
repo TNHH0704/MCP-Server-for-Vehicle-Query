@@ -27,13 +27,10 @@ public interface ISessionStorageService
 
 public class InMemorySessionStorageService : ISessionStorageService
 {
-    // Maps bearer token hash to unique session ID
     private readonly ConcurrentDictionary<string, string> _tokenToSessionMap = new();
     
-    // Maps session ID to last access time for cleanup
     private readonly ConcurrentDictionary<string, DateTime> _sessionLastAccess = new();
     
-    // Configuration for session timeout
     private readonly TimeSpan _sessionTimeout = TimeSpan.FromHours(24);
     
     public string GetOrCreateSessionId(string bearerToken)
@@ -43,16 +40,12 @@ public class InMemorySessionStorageService : ISessionStorageService
             return "anonymous";
         }
         
-        // Hash the bearer token for storage (don't store raw tokens)
         var tokenHash = GetTokenHash(bearerToken);
         
-        // Clean up expired sessions periodically
         CleanupExpiredSessions();
         
-        // Get or create session ID
         var sessionId = _tokenToSessionMap.GetOrAdd(tokenHash, _ => GenerateSessionId());
         
-        // Update last access time
         _sessionLastAccess[sessionId] = DateTime.UtcNow;
         
         return sessionId;
@@ -69,7 +62,6 @@ public class InMemorySessionStorageService : ISessionStorageService
         
         if (_tokenToSessionMap.TryGetValue(tokenHash, out var sessionId))
         {
-            // Update last access time
             _sessionLastAccess[sessionId] = DateTime.UtcNow;
             return sessionId;
         }
@@ -102,14 +94,12 @@ public class InMemorySessionStorageService : ISessionStorageService
     /// </summary>
     private static string GenerateSessionId()
     {
-        // Generate 16 random bytes (128 bits of entropy)
         var randomBytes = new byte[16];
         using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create())
         {
             rng.GetBytes(randomBytes);
         }
         
-        // Convert to base64 and make URL-safe
         var base64 = Convert.ToBase64String(randomBytes)
             .Replace('+', '-')
             .Replace('/', '_')
@@ -143,7 +133,6 @@ public class InMemorySessionStorageService : ISessionStorageService
         {
             _sessionLastAccess.TryRemove(sessionId, out _);
             
-            // Also remove the token mapping
             var tokenHashToRemove = _tokenToSessionMap
                 .FirstOrDefault(kvp => kvp.Value == sessionId)
                 .Key;

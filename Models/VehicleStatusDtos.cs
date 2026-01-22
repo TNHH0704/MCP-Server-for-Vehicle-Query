@@ -104,8 +104,8 @@ public class RealTimeDailyStatsDto
 
 public class RealTimeTimestampsDto
 {
-    public DateTime GpsTime { get; set; }  // Vehicle status last update time
-    public DateTime LastUpdateTime { get; set; }  // Last stop time
+    public DateTime GpsTime { get; set; }
+    public DateTime LastUpdateTime { get; set; }
     public DateTime? AccOffTime { get; set; }
     public string GpsTimeFormatted => GpsTime.ToString("dd-MM-yyyy HH:mm:ss");
     public string LastStopTimeFormatted => LastUpdateTime.ToString("dd-MM-yyyy HH:mm:ss");

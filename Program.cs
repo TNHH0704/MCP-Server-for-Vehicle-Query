@@ -21,7 +21,7 @@ builder.Services.AddScoped<RequestContextService>();
 builder.Services.AddTransient<ContextTools>();
 builder.Services.AddSingleton<AuditLogService>();
 builder.Services.AddSingleton<GitHubOpenAIService>();
-builder.Services.AddSingleton<GuardrailService>();
+builder.Services.AddSingleton<SecurityValidationService>();
 builder.Services.AddTransient<VehicleMapperService>();
 
 builder.Services.AddTransient<VehicleStatusService>(sp =>
@@ -30,7 +30,9 @@ builder.Services.AddTransient<VehicleStatusService>(sp =>
         sp.GetRequiredService<IConfiguration>()
     ));
 
-builder.Services.AddTransient<VehicleStatusMapperService>();
+    builder.Services.AddTransient<VehicleStatusMapperService>(sp =>
+        new VehicleStatusMapperService(sp.GetRequiredService<SecurityValidationService>())
+    );
 
 builder.Services.AddTransient<WaypointService>(sp =>
     new WaypointService(

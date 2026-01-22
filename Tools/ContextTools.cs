@@ -36,7 +36,6 @@ public class ContextTools
     {
         try
         {
-            // Set the bearer token in AsyncLocal so SessionId can retrieve it
             RequestContextService.SetToken(bearerToken);
             
             var sessionId = GetSessionId();
@@ -77,7 +76,6 @@ public class ContextTools
     {
         try
         {
-            // Set the bearer token in AsyncLocal so SessionId can retrieve it
             RequestContextService.SetToken(bearerToken);
             
             var sessionId = GetSessionId();

@@ -26,13 +26,11 @@ public class RequestContextService
     {
         get
         {
-            // Return cached session ID if available
             if (!string.IsNullOrEmpty(_currentSessionId.Value))
             {
                 return _currentSessionId.Value;
             }
             
-            // Generate or retrieve session ID from storage
             if (!string.IsNullOrEmpty(BearerToken))
             {
                 var sessionId = _sessionStorage.GetOrCreateSessionId(BearerToken);

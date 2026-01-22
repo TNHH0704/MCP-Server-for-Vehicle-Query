@@ -1,7 +1,7 @@
 public class WaypointSummary
 {
     public string Timestamp { get; set; } = "";
-    public int RawGpsTime { get; set; }  // Raw GPS time value for testing purposes
+    public int RawGpsTime { get; set; } 
     public double Latitude { get; set; }
     public double Longitude { get; set; }
     public int Altitude { get; set; }
@@ -10,7 +10,7 @@ public class WaypointSummary
     public byte Satellites { get; set; }
     public double Mileage { get; set; }
     public double GpsMileage { get; set; }
-    public double CumulativeDistanceKm { get; set; }  // Running total distance from start
+    public double CumulativeDistanceKm { get; set; }
     public short EventId { get; set; }
     public int Status { get; set; }
     public double Voltage { get; set; }

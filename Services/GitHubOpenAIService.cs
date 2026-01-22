@@ -50,7 +50,7 @@ public class GitHubOpenAIService
     /// <summary>
     /// Validates query intent using GitHub's GPT-4o model
     /// </summary>
-    public async Task<GuardrailResult?> ValidateIntentAsync(string query, string toolDomain, string? userId = null)
+    public async Task<SecurityValidationResult?> ValidateIntentAsync(string query, string toolDomain, string? userId = null)
     {
         if (string.IsNullOrWhiteSpace(query))
             return null;
@@ -58,7 +58,7 @@ public class GitHubOpenAIService
         if (_openAIClient == null)
         {
             _logger.LogDebug("OpenAI client not configured - AI validation disabled");
-            return null; // Signal fallback needed
+            return null;
         }
 
         try
@@ -79,7 +79,7 @@ public class GitHubOpenAIService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "AI validation failed for query: {Query}", query?.Substring(0, Math.Min(query.Length, 100)));
-            return null; // Signal fallback needed
+            return null;
         }
     }
 
@@ -184,10 +184,10 @@ public class GitHubOpenAIService
         }
     }
 
-    private GuardrailResult ParseAIResponse(string aiResponse, string query, string domain)
-{
-    try 
+    private SecurityValidationResult ParseAIResponse(string aiResponse, string query, string domain)
     {
+        try 
+        {
         var json = JsonSerializer.Deserialize<JsonElement>(aiResponse);
         
         bool isValid = json.GetProperty("isValid").GetBoolean();
@@ -199,27 +199,43 @@ public class GitHubOpenAIService
         if (!isValid && risk == "low")
         {
             _logger.LogWarning("AI blocked query '{Query}' as Low Risk. Overriding to ALLOW.", query);
-            return GuardrailResult.PassedWithAI(0.9, "low"); // Override
+            return SecurityValidationResult.PassedWithAI(0.9, "low");
         }
 
-        if (!isValid)
+        if (isValid)
         {
-            return GuardrailResult.FailedWithAI(
-                errorCode: GetErrorCodeFromRiskLevel(risk),
-                message: reason,
-                confidence: 0.9,
-                riskLevel: risk,
-                allowedTopics: GetAllowedTopicsForDomain(domain)
-            );
+            return SecurityValidationResult.PassedWithAI(0.9, risk);
         }
 
-        return GuardrailResult.PassedWithAI(0.9, risk);
+        // For failed validation, try to extract more details
+        string? errorCode = null;
+        string[]? allowedTopics = null;
+        
+        if (json.TryGetProperty("errorCode", out var ec))
+        {
+            errorCode = ec.GetString();
+        }
+
+        if (json.TryGetProperty("allowedTopics", out var at) && at.ValueKind == JsonValueKind.Array)
+        {
+            allowedTopics = at.EnumerateArray()
+                .Select(x => x.GetString())
+                .Where(x => !string.IsNullOrEmpty(x))
+                .ToArray();
+        }
+
+        return SecurityValidationResult.FailedWithAI(
+            errorCode ?? "AI_VALIDATION",
+            reason,
+            0.9,
+            risk,
+            allowedTopics
+        );
     }
     catch (Exception ex)
     {
-        // Fail Open (Allow) if JSON is broken, unless regex caught it earlier
-        _logger.LogError("AI JSON Parse Error: {Ex}", ex.Message);
-        return GuardrailResult.Passed(); 
+        _logger.LogWarning(ex, "Failed to parse AI response: {Response}", aiResponse.Substring(0, Math.Min(aiResponse.Length, 200)));
+        return SecurityValidationResult.Passed(); // Default to allow on parse error
     }
 }
 

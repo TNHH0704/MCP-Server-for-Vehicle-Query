@@ -85,7 +85,6 @@ public class WaypointService
     {
         try
         {
-            // Remove whitespace from Base64 string
             outerBase64 = new string(outerBase64.Where(c => !char.IsWhiteSpace(c)).ToArray());
 
             if (string.IsNullOrEmpty(outerBase64))
@@ -93,7 +92,6 @@ public class WaypointService
                 return new List<Waypoint>();
             }
 
-            // Step 1: Decode outer Base64 layer
             byte[] compressedBytes = Convert.FromBase64String(outerBase64);
 
             if (compressedBytes.Length == 0)
@@ -101,10 +99,8 @@ public class WaypointService
                 return new List<Waypoint>();
             }
 
-            // Check for custom 4-byte header before GZip magic bytes (1F 8B)
             int offset = HasGzipHeader(compressedBytes) ? 4 : 0;
 
-            // Step 2: Decompress GZip layer to get inner Base64 string
             string innerBase64 = DecompressGzipLayer(compressedBytes, offset);
 
             if (string.IsNullOrEmpty(innerBase64))
@@ -112,7 +108,6 @@ public class WaypointService
                 return new List<Waypoint>();
             }
 
-            // Step 3: Decode inner Base64 to get Protobuf bytes
             innerBase64 = new string(innerBase64.Where(c => !char.IsWhiteSpace(c)).ToArray());
             byte[] protobufBytes = Convert.FromBase64String(innerBase64);
 
@@ -121,12 +116,10 @@ public class WaypointService
                 return new List<Waypoint>();
             }
 
-            // Step 4: Deserialize Protobuf to List<Waypoint>
             return DeserializeProtobuf(protobufBytes);
         }
         catch (InvalidDataException)
         {
-            // Compression error - likely empty or invalid data
             return new List<Waypoint>();
         }
         catch (Exception ex)
@@ -190,8 +183,8 @@ public class WaypointService
         string vehicleId,
         DateTime date)
     {
-        var startTime = date.Date; // Start of day
-        var endTime = startTime.AddDays(1).AddSeconds(-1); // End of day
+        var startTime = date.Date; 
+        var endTime = startTime.AddDays(1).AddSeconds(-1); 
         return await GetVehicleWaypointsAsync(bearerToken, vehicleId, startTime, endTime);
     }
 }

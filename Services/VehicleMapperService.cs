@@ -7,7 +7,6 @@ namespace McpVersionVer2.Services;
 /// </summary>
 public class VehicleMapperService
 {
-    // Conversion constants
     private const double SPEED_DIVISOR = 100.0;
     private const double DISTANCE_DIVISOR = 1000.0;
     private const double GPS_COORDINATE_DIVISOR = 1_000_000.0;
@@ -127,24 +126,19 @@ public class VehicleMapperService
             LastUpdated = DateTime.UtcNow
         };
 
-        // Group by status
         stats.VehiclesByStatus = vehicles
             .Where(v => v.RawStatus != null)
             .GroupBy(v => v.RawStatus!.StatusName)
             .ToDictionary(g => g.Key, g => g.Count());
 
-        // Group by company
         stats.VehiclesByCompany = vehicles
             .GroupBy(v => v.CompanyName)
             .ToDictionary(g => g.Key, g => g.Count());
 
-        // Group by type
         stats.VehiclesByType = vehicles
             .GroupBy(v => v.VehicleTypeName)
             .ToDictionary(g => g.Key, g => g.Count());
 
-        // Calculate special conditions
-        // Convert speeds for comparison
         stats.VehiclesOverSpeed = vehicles.Count(v =>
             v.RawStatus != null && (v.RawStatus.Speed / SPEED_DIVISOR) > (v.MaxSpeed / SPEED_DIVISOR));
 
@@ -186,7 +180,6 @@ public class VehicleMapperService
     {
         var status = new VehicleStatusDto
         {
-            // Convert maxSpeed from raw value to km/h
             MaxSpeed = (int)(vehicle.MaxSpeed / SPEED_DIVISOR)
         };
 
@@ -195,11 +188,9 @@ public class VehicleMapperService
             status.StatusName = vehicle.RawStatus.StatusName;
             status.StatusColor = vehicle.RawStatus.StatusColor;
             status.StatusCode = vehicle.RawStatus.Status;
-            // Convert speed from raw value to km/h
             status.CurrentSpeed = (int)(vehicle.RawStatus.Speed / SPEED_DIVISOR);
             status.IsOverSpeed = status.CurrentSpeed > status.MaxSpeed;
 
-            // Generate human-readable speed description
             status.SpeedDescription = status.CurrentSpeed switch
             {
                 0 => "Stopped",
@@ -229,23 +220,19 @@ public class VehicleMapperService
             return location;
         }
 
-        // Convert from raw coordinates to degrees
         location.Latitude = rawStatus.Y / GPS_COORDINATE_DIVISOR;
         location.Longitude = rawStatus.X / GPS_COORDINATE_DIVISOR;
         location.GpsColor = rawStatus.GpsColor;
         location.HasValidGps = rawStatus.X != 0 && rawStatus.Y != 0;
 
-        // Use address from Info field if available, otherwise fall back to coordinates
         location.Address = !string.IsNullOrEmpty(rawStatus.Info)
             ? rawStatus.Info
             : "Unknown location";
 
-        // Format coordinates for display
         location.FormattedCoordinates = location.HasValidGps
             ? $"{location.Latitude:F6}, {location.Longitude:F6}"
             : "Invalid GPS";
 
-        // Convert GPS timestamp: seconds since 2010-01-01 00:00:00
         if (rawStatus.GpsTime > 0)
         {
             try
@@ -275,7 +262,6 @@ public class VehicleMapperService
 
         var now = DateTime.UtcNow;
 
-        // Calculate insurance expiration status
         if (vehicle.ExpiredInsuranceDate.HasValue)
         {
             dates.IsInsuranceExpired = vehicle.ExpiredInsuranceDate.Value < now;
@@ -285,7 +271,6 @@ public class VehicleMapperService
             }
         }
 
-        // Calculate registry expiration status
         if (vehicle.ExpiredRegistryDate.HasValue)
         {
             dates.IsRegistryExpired = vehicle.ExpiredRegistryDate.Value < now;

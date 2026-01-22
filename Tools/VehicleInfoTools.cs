@@ -14,20 +14,22 @@ public class VehicleInfoTools
 {
     private readonly VehicleService _vehicleService;
     private readonly VehicleMapperService _mapper;
-    private readonly GuardrailService _guardrail;
+    private readonly SecurityValidationService _securityService;
     private readonly IConversationContextService _contextService;
     private readonly RequestContextService _requestContext;
 
     public VehicleInfoTools(
         VehicleService vehicleService, 
         VehicleMapperService mapper, 
-        GuardrailService guardrail,
+        SecurityValidationService securityService,
         IConversationContextService contextService,
         RequestContextService requestContext)
     {
         _vehicleService = vehicleService;
         _mapper = mapper;
-        _guardrail = guardrail;
+        _securityService = securityService;
+        _contextService = contextService;
+        _requestContext = requestContext;
         _contextService = contextService;
         _requestContext = requestContext;
     }
@@ -43,7 +45,7 @@ public class VehicleInfoTools
 
         try
         {
-            return await _guardrail.ExecuteValidatedToolRequestWithContext(
+            return await _securityService.ExecuteValidatedToolRequestWithContext(
                 queryContext: queryContext,
                 domain: "vehicle_registry",
                 bearerToken: bearerToken,
@@ -81,7 +83,7 @@ public class VehicleInfoTools
 
         try
         {
-            return await _guardrail.ExecuteValidatedToolRequestWithContext(
+            return await _securityService.ExecuteValidatedToolRequestWithContext(
                 queryContext: queryContext,
                 domain: "vehicle_registry",
                 bearerToken: bearerToken,
@@ -113,7 +115,7 @@ public class VehicleInfoTools
 
         try
         {
-            return await _guardrail.ExecuteValidatedToolRequestWithContext(
+            return await _securityService.ExecuteValidatedToolRequestWithContext(
                 queryContext: queryContext,
                 domain: "vehicle_registry",
                 bearerToken: bearerToken,

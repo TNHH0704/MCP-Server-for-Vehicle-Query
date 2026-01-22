@@ -81,7 +81,6 @@ public class VehicleHistoryService
             throw new ArgumentException("Vehicle ID cannot be empty or whitespace.", nameof(vehicleId));
         }
 
-        // If start and end times are the same, expand to a 1-minute window
         if (startTime == endTime)
         {
             endTime = endTime.AddMinutes(1);
@@ -114,15 +113,14 @@ public class VehicleHistoryService
     {
         var summaries = new List<WaypointSummary>();
         double cumulativeDistanceKm = 0.0;
-        double consecutiveIdleSeconds = 0.0; // Track consecutive idle time
-        int idleStartIndex = -1; // Index where current idle period started
+        double consecutiveIdleSeconds = 0.0;
+        int idleStartIndex = -1;
 
         for (int i = 0; i < waypoints.Count; i++)
         {
             var w = waypoints[i];
             var currentSpeed = w.Speed / SPEED_DIVISOR;
 
-            // Calculate distance from previous waypoint
             if (i > 0)
             {
                 var prev = waypoints[i - 1];
@@ -131,14 +129,11 @@ public class VehicleHistoryService
                 var lat2 = w.Y / GPS_COORDINATE_DIVISOR;
                 var lon2 = w.X / GPS_COORDINATE_DIVISOR;
 
-                // Use GisUtil.GetDistance directly (returns meters as int, following its rounding)
                 int distanceInMeters = GisUtil.GetDistance(lon1, lat1, lon2, lat2);
 
-                // Convert to kilometers and accumulate
                 double distanceKm = distanceInMeters / DISTANCE_DIVISOR;
                 cumulativeDistanceKm += distanceKm;
 
-                // Calculate time interval for status determination
                 double timeIntervalSeconds = w.GpsTime - prev.GpsTime;
                 if (timeIntervalSeconds > 0)
                 {
@@ -215,7 +210,6 @@ public class VehicleHistoryService
             });
         }
 
-        // Handle case where file ends with idle period
         if (idleStartIndex >= 0 && summaries.Count > 0)
         {
             if (consecutiveIdleSeconds <= SHORT_IDLE_THRESHOLD_SECONDS)
@@ -247,7 +241,6 @@ public class VehicleHistoryService
         var movingCount = sortedWaypoints.Count(w => w.Speed > 0);
         var (runningTimeSeconds, stopTimeSeconds, stopCount) = CalculateRunningAndStopTime(sortedWaypoints);
 
-        // Speed in waypoint is stored as speed * 100 (e.g., 500 = 5 km/h)
         var totalSpeed = sortedWaypoints.Sum(w => w.Speed / SPEED_DIVISOR);
         var avgSpeed = sortedWaypoints.Count > 0 ? totalSpeed / sortedWaypoints.Count : 0;
         var maxSpeed = sortedWaypoints.Any() ? sortedWaypoints.Max(w => w.Speed / SPEED_DIVISOR) : 0;
@@ -303,7 +296,6 @@ public class VehicleHistoryService
 
         var waypointSummaries = ConvertToWaypointSummaries(filteredWaypoints);
 
-        // Get total distance from the last waypoint's cumulative distance (already truncated)
         var totalDistanceKm = waypointSummaries.Any() ? waypointSummaries.Last().CumulativeDistanceKm : 0.0;
 
         var statistics = CalculateTripStatistics(filteredWaypoints, totalDistanceKm);
@@ -388,7 +380,6 @@ public class VehicleHistoryService
 
         if (filteredWaypoints.Count < 2)
         {
-            // Not enough waypoints to calculate running/stop time
             return new VehicleTripSummary
             {
                 VehicleId = vehicleId,
@@ -422,23 +413,17 @@ public class VehicleHistoryService
             throw new InvalidOperationException($"No moving waypoints found for vehicle {vehicleId} in the specified time range.");
         }
 
-        // Calculate total distance using GPS-based cumulative distance from filtered waypoints
         var waypointSummaries = ConvertToWaypointSummaries(filteredWaypoints);
         var totalGpsDistance = waypointSummaries.Last().CumulativeDistanceKm;
 
-        // Calculate duration as the requested time range
         var durationSeconds = (endTime - startTime).TotalSeconds;
-        // Use filtered waypoints for average speed calculation
         var allSpeeds = filteredWaypoints.Select(w => w.Speed / SPEED_DIVISOR).ToList();
-        // Keep moving waypoints for max speed (only consider periods of movement)
         var movingSpeeds = movingWaypointsFiltered.Select(w => w.Speed / SPEED_DIVISOR).ToList();
 
-        // Calculate stop time using the filtered waypoints
         var (runningTimeSeconds, stopTimeSeconds, _) = CalculateRunningAndStopTime(filteredWaypoints);
-        var amountOfTimeStop = Math.Round(stopTimeSeconds / 3600.0, 2); // Convert to hours
-        var amountOfTimeRunning = Math.Round(runningTimeSeconds / 3600.0, 2); // Convert to hours
+        var amountOfTimeStop = Math.Round(stopTimeSeconds / 3600.0, 2); 
+        var amountOfTimeRunning = Math.Round(runningTimeSeconds / 3600.0, 2);
 
-        // Use the same stop counting logic as GetVehicleHistory (minimum 2 minutes)
         var (_, _, stopCountFromHistory) = CalculateRunningAndStopTime(filteredWaypoints);
 
         return new VehicleTripSummary
@@ -448,13 +433,13 @@ public class VehicleHistoryService
             EndTime = ConvertGpsTimeToDateTime(lastWaypoint.GpsTime).ToString("dd-MM-yyyy HH:mm:ss"),
             TotalDistanceKm = Math.Round(totalGpsDistance, 3),
             DurationHours = Math.Round(durationSeconds / 3600.0, 2),
-            AverageSpeedKmh = Math.Round(allSpeeds.Average(), 2), // Use all waypoints for average speed
-            MaxSpeedKmh = Math.Round(movingSpeeds.Max(), 2), // Use moving waypoints for max speed
-            StopCount = stopCountFromHistory, // Use same stop counting logic as GetVehicleHistory
+            AverageSpeedKmh = Math.Round(allSpeeds.Average(), 2), 
+            MaxSpeedKmh = Math.Round(movingSpeeds.Max(), 2), 
+            StopCount = stopCountFromHistory, 
             TotalWaypoints = filteredWaypoints.Count,
             MovingWaypoints = movingWaypointsFiltered.Count,
-            AmountOfTimeStop = amountOfTimeStop, // Add stop time in hours
-            AmountOfTimeRunning = amountOfTimeRunning, // Add running time in hours
+            AmountOfTimeStop = amountOfTimeStop, 
+            AmountOfTimeRunning = amountOfTimeRunning, 
             StartLatitude = RoundTo6Decimals(firstWaypoint.Y / GPS_COORDINATE_DIVISOR),
             StartLongitude = RoundTo6Decimals(firstWaypoint.X / GPS_COORDINATE_DIVISOR),
             StartInfo = firstWaypoint.Info ?? "",
@@ -481,7 +466,6 @@ public class VehicleHistoryService
         int stopTimeSeconds = 0;
         int stopCount = 0;
 
-        // Variables to track consecutive stop groups
         double currentStopGroupDuration = 0;
         bool isStopping = false;
 
@@ -490,40 +474,32 @@ public class VehicleHistoryService
             var current = orderedWaypoints[i];
             var next = orderedWaypoints[i + 1];
 
-            // Calculate duration of this specific interval
             double intervalSeconds = next.GpsTime - current.GpsTime;
 
-            // Skip intervals with no time difference (duplicate timestamps)
             if (intervalSeconds <= 0)
             {
                 continue;
             }
 
-            // Check if current waypoint indicates stopping (speed = 0)
             if (current.Speed == 0)
             {
-                // Accumulate duration for the current stop group
                 isStopping = true;
                 currentStopGroupDuration += intervalSeconds;
             }
             else
             {
-                // Speed > 0, so this is definitely moving time
                 runningTimeSeconds += (int)intervalSeconds;
 
-                // If we were previously tracking a stop group, we need to finalize it now
                 if (isStopping)
                 {
                     ProcessStopGroup(currentStopGroupDuration, ref runningTimeSeconds, ref stopTimeSeconds, ref stopCount);
 
-                    // Reset stop tracking
                     currentStopGroupDuration = 0;
                     isStopping = false;
                 }
             }
         }
 
-        // Handle the final group if the file ends while stopped
         if (isStopping)
         {
             ProcessStopGroup(currentStopGroupDuration, ref runningTimeSeconds, ref stopTimeSeconds, ref stopCount);
@@ -536,13 +512,11 @@ public class VehicleHistoryService
     {
         if (duration > MIN_STOP_DURATION_SECONDS)
         {
-            // Long stop -> Actual Stop Time
             stopTotal += (int)duration;
             stopCount++;
         }
         else
         {
-            // Short stop (traffic light, etc.) -> Add to Running Time
             runTotal += (int)duration;
         }
     }

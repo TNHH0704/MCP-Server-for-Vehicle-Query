@@ -13,8 +13,6 @@ public class VehicleHistoryResult
     public List<WaypointSummary> Waypoints { get; set; } = new();
     public int? HoursBack { get; set; }
     public string? Date { get; set; }
-
-    // Trip Statistics
     public double TotalDistanceKm { get; set; }
     public string TotalRunningTime { get; set; } = "";
     public string TotalStopTime { get; set; } = "";

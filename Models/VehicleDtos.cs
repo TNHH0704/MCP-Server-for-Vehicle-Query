@@ -5,33 +5,24 @@ namespace McpVersionVer2.Models;
 /// </summary>
 public class VehicleDto
 {
-    // Basic Vehicle Information
     public string Id { get; set; } = string.Empty;
     public string Plate { get; set; } = string.Empty;
-    public string DisplayName { get; set; } = string.Empty; // Processed custom plate
+    public string DisplayName { get; set; } = string.Empty; 
     public string VehicleType { get; set; } = string.Empty;
     public string VehicleGroup { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
 
-    // Company Information
     public CompanyInfo Company { get; set; } = new();
 
-    // Device Information
     public DeviceInfo Device { get; set; } = new();
-
-    // Current Status
     public VehicleStatusDto Status { get; set; } = new();
 
-    // Location Information
     public LocationDto Location { get; set; } = new();
 
-    // Dates and Timestamps
     public DateInfoDto Dates { get; set; } = new();
 
-    // Flags
     public VehicleFlagsDto Flags { get; set; } = new();
 
-    // Metadata
     public string LastUpdatedBy { get; set; } = string.Empty;
     public DateTime LastUpdated { get; set; }
 }
@@ -67,10 +58,10 @@ public class VehicleStatusDto
     public string StatusName { get; set; } = string.Empty;
     public string StatusColor { get; set; } = string.Empty;
     public int StatusCode { get; set; }
-    public int CurrentSpeed { get; set; } // km/h
-    public int MaxSpeed { get; set; } // km/h
-    public bool IsOverSpeed { get; set; } // Calculated flag
-    public string SpeedDescription { get; set; } = string.Empty; // e.g., "Stopped", "Moving normally", "Over speed!"
+    public int CurrentSpeed { get; set; }
+    public int MaxSpeed { get; set; }
+    public bool IsOverSpeed { get; set; }
+    public string SpeedDescription { get; set; } = string.Empty; 
 }
 
 /// <summary>
@@ -78,13 +69,13 @@ public class VehicleStatusDto
 /// </summary>
 public class LocationDto
 {
-    public double Latitude { get; set; } // Processed from Y
-    public double Longitude { get; set; } // Processed from X
-    public string FormattedCoordinates { get; set; } = string.Empty; // e.g., "10.760351, 106.674400"
-    public string Address { get; set; } = string.Empty; // Address from Info field
-    public DateTime? GpsTimestamp { get; set; } // Converted from Unix timestamp
+    public double Latitude { get; set; } 
+    public double Longitude { get; set; } 
+    public string FormattedCoordinates { get; set; } = string.Empty; 
+    public string Address { get; set; } = string.Empty; 
+    public DateTime? GpsTimestamp { get; set; } 
     public string GpsColor { get; set; } = string.Empty;
-    public bool HasValidGps { get; set; } // Calculated flag
+    public bool HasValidGps { get; set; } 
 }
 
 /// <summary>
@@ -97,8 +88,6 @@ public class DateInfoDto
     public DateTime? InsuranceExpiration { get; set; }
     public DateTime? RegistryDate { get; set; }
     public DateTime? RegistryExpiration { get; set; }
-    
-    // Calculated flags
     public bool IsInsuranceExpired { get; set; }
     public bool IsRegistryExpired { get; set; }
     public int? DaysUntilInsuranceExpires { get; set; }

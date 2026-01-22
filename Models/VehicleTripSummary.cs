@@ -10,8 +10,8 @@ public class VehicleTripSummary
     public int StopCount { get; set; }
     public int TotalWaypoints { get; set; }
     public int MovingWaypoints { get; set; }
-    public double AmountOfTimeStop { get; set; } // Time spent stopped in hours
-    public double AmountOfTimeRunning { get; set; } // Time spent running in hours
+    public double AmountOfTimeStop { get; set; } 
+    public double AmountOfTimeRunning { get; set; } 
     public double StartLatitude { get; set; }
     public double StartLongitude { get; set; }
     public string StartInfo { get; set; } = "";

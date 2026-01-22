@@ -9,7 +9,7 @@ namespace McpVersionVer2.Helpers;
 public static class ToolHelperExtensions
 {
     public static async Task<string> ExecuteValidatedToolRequest<T>(
-        this GuardrailService guardrail,
+        this SecurityValidationService securityService,
         string queryContext,
         string domain,
         string bearerToken,
@@ -19,33 +19,26 @@ public static class ToolHelperExtensions
         var tokenHash = RateLimiter.GetTokenHash(bearerToken);
         var userId = tokenHash;
 
-        var validation = await guardrail.ValidateQueryWithAIAsync(queryContext, domain, userId);
+        var validation = await securityService.ValidateQueryAsync(queryContext, domain, userId);
         if (!validation.IsValid)
         {
             throw new ToolValidationException(validation.ToJsonResponse());
         }
 
-        var (isValid, errorMessage) = OutputSanitizer.ValidateVehicleQuery(queryContext);
-        if (!isValid)
+        if (!securityService.IsValidBearerToken(bearerToken))
         {
-            throw new ToolValidationException(OutputSanitizer.CreateErrorResponse(
-                "This tool is ONLY for vehicle tracking queries. " + errorMessage,
-                "OFF_TOPIC"));
-        }
-
-        if (!OutputSanitizer.IsValidBearerToken(bearerToken))
-        {
-            throw new ToolValidationException(OutputSanitizer.CreateErrorResponse(
-                "Invalid bearer token format.",
-                "INVALID_TOKEN"));
+            throw new ToolValidationException(securityService.ValidateQueryWithRules(queryContext, domain, userId).ToJsonResponse());
         }
 
         var (allowed, rateLimitReason) = RateLimiter.IsAllowed(tokenHash);
         if (!allowed)
         {
-            throw new ToolValidationException(OutputSanitizer.CreateErrorResponse(
-                rateLimitReason!,
-                "RATE_LIMIT_EXCEEDED"));
+            throw new ToolValidationException(System.Text.Json.JsonSerializer.Serialize(new
+            {
+                success = false,
+                errorCode = "RATE_LIMIT_EXCEEDED",
+                error = rateLimitReason!
+            }));
         }
 
         var result = await action(bearerToken);
@@ -128,8 +121,8 @@ public static class ToolHelperExtensions
         return await service.GetVehiclesAsync(bearerToken);
     }
 
-public static async Task<string> ExecuteValidatedToolRequestWithContext<T>(
-        this GuardrailService guardrail,
+    public static async Task<string> ExecuteValidatedToolRequestWithContext<T>(
+        this SecurityValidationService securityService,
         string queryContext,
         string domain,
         string bearerToken,
@@ -145,33 +138,26 @@ public static async Task<string> ExecuteValidatedToolRequestWithContext<T>(
             var tokenHash = RateLimiter.GetTokenHash(bearerToken);
             var userId = tokenHash;
 
-            var validation = await guardrail.ValidateQueryWithAIAsync(queryContext, domain, userId);
+        var validation = await securityService.ValidateQueryAsync(queryContext, domain, userId);
             if (!validation.IsValid)
             {
                 throw new ToolValidationException(validation.ToJsonResponse());
             }
 
-            var (isValid, errorMessage) = OutputSanitizer.ValidateVehicleQuery(queryContext);
-            if (!isValid)
+            if (!securityService.IsValidBearerToken(bearerToken))
             {
-                throw new ToolValidationException(OutputSanitizer.CreateErrorResponse(
-                    "This tool is ONLY for vehicle tracking queries. " + errorMessage,
-                    "OFF_TOPIC"));
-            }
-
-            if (!OutputSanitizer.IsValidBearerToken(bearerToken))
-            {
-                throw new ToolValidationException(OutputSanitizer.CreateErrorResponse(
-                    "Invalid bearer token format.",
-                    "INVALID_TOKEN"));
+                throw new ToolValidationException(securityService.ValidateQueryWithRules(queryContext, domain, userId).ToJsonResponse());
             }
 
             var (allowed, rateLimitReason) = RateLimiter.IsAllowed(tokenHash);
             if (!allowed)
             {
-                throw new ToolValidationException(OutputSanitizer.CreateErrorResponse(
-                    rateLimitReason!,
-                    "RATE_LIMIT_EXCEEDED"));
+                throw new ToolValidationException(System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    success = false,
+                    errorCode = "RATE_LIMIT_EXCEEDED",
+                    error = rateLimitReason!
+                }));
             }
 
             var sessionId = requestContext.SessionId;

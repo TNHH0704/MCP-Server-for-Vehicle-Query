@@ -13,12 +13,12 @@ namespace McpVersionVer2.Tools;
 public class AuthTools
 {
     private readonly AuthService _authService;
-    private readonly GuardrailService _guardrail;
+    private readonly SecurityValidationService _securityService;
 
-    public AuthTools(AuthService authService, GuardrailService guardrail)
+    public AuthTools(AuthService authService, SecurityValidationService securityService)
     {
         _authService = authService;
-        _guardrail = guardrail;
+        _securityService = securityService;
     }
 
     [McpServerTool, Description("AUTH ONLY: Refresh an expired JWT access token using a refresh token. Returns new access token and refresh token. REJECT: non-auth queries.")]
@@ -26,7 +26,7 @@ public class AuthTools
         [Description("Refresh token received during login or previous refresh")] string refreshToken)
     {
         var queryContext = "refresh token auth";
-        var validation = await _guardrail.ValidateQueryWithAIAsync(queryContext, "auth", "auth_tool");
+        var validation = await _securityService.ValidateQueryAsync(queryContext, "auth", "auth_tool");
         if (!validation.IsValid)
         {
             return validation.ToJsonResponse();
@@ -34,8 +34,7 @@ public class AuthTools
 
         try
         {
-            // Validate input format
-            if (!OutputSanitizer.IsValidBearerToken(refreshToken))
+            if (!_securityService.IsValidBearerToken(refreshToken))
             {
                 return System.Text.Json.JsonSerializer.Serialize(new
                 {
@@ -45,7 +44,6 @@ public class AuthTools
                 }, Default);
             }
 
-            // Attempt token refresh
             var result = await _authService.RefreshAccessTokenAsync(refreshToken);
 
             if (result == null)
@@ -58,7 +56,6 @@ public class AuthTools
                 }, Default);
             }
 
-            // Success - return new tokens
             return System.Text.Json.JsonSerializer.Serialize(new
             {
                 success = true,

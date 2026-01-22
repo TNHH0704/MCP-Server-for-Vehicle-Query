@@ -17,20 +17,22 @@ public class VehicleLiveStatusTools
 
     private readonly VehicleStatusService _statusService;
     private readonly VehicleStatusMapperService _mapper;
-    private readonly GuardrailService _guardrail;
+    private readonly SecurityValidationService _securityService;
     private readonly IConversationContextService _contextService;
     private readonly RequestContextService _requestContext;
 
     public VehicleLiveStatusTools(
         VehicleStatusService statusService, 
         VehicleStatusMapperService mapper, 
-        GuardrailService guardrail,
+        SecurityValidationService securityService,
         IConversationContextService contextService,
         RequestContextService requestContext)
     {
         _statusService = statusService;
         _mapper = mapper;
-        _guardrail = guardrail;
+        _securityService = securityService;
+        _contextService = contextService;
+        _requestContext = requestContext;
         _contextService = contextService;
         _requestContext = requestContext;
     }
@@ -56,7 +58,7 @@ public class VehicleLiveStatusTools
 
         try
         {
-            return await _guardrail.ExecuteValidatedToolRequestWithContext(
+            return await _securityService.ExecuteValidatedToolRequestWithContext(
                 queryContext: queryContext,
                 domain: "live_status",
                 bearerToken: bearerToken,
@@ -93,7 +95,7 @@ public class VehicleLiveStatusTools
 
         try
         {
-            return await _guardrail.ExecuteValidatedToolRequestWithContext(
+            return await _securityService.ExecuteValidatedToolRequestWithContext(
                 queryContext: queryContext,
                 domain: "live_status",
                 bearerToken: bearerToken,
@@ -132,7 +134,7 @@ public class VehicleLiveStatusTools
 
         try
         {
-            return await _guardrail.ExecuteValidatedToolRequestWithContext(
+            return await _securityService.ExecuteValidatedToolRequestWithContext(
                 queryContext: queryContext,
                 domain: "live_status",
                 bearerToken: bearerToken,
