@@ -65,7 +65,24 @@ builder.Services.AddMcpServer()
     .WithHttpTransport()
     .WithToolsFromAssembly();
 
+var myAllowSpecificOrigins = "_myAllowSpecificOrigins";
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(name: myAllowSpecificOrigins,
+        policy =>
+        {
+            // REPLACE with your actual Frontend URL
+            policy.WithOrigins("http://0.0.0.0:8080")
+                  .AllowAnyHeader()
+                  .AllowAnyMethod()
+                  .AllowCredentials(); // Important if using Auth Cookies
+        });
+});
+
 var app = builder.Build();
+
+app.UseCors(myAllowSpecificOrigins);
 
 app.MapMcp();
 
