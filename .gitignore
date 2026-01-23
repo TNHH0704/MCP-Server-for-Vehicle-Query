@@ -119,3 +119,4 @@ Dockerfile
 .gitignore
 docker-compose.yml
 README-Docker.md
+AGENTS.md

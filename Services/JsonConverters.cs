@@ -51,7 +51,7 @@ public static class AppJsonSerializerOptions
 {
     public static System.Text.Json.JsonSerializerOptions Default => new System.Text.Json.JsonSerializerOptions
     {
-        WriteIndented = true,
+        WriteIndented = false,
         Converters = 
         {
             new CustomDateTimeConverter(),

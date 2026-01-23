@@ -119,7 +119,7 @@ public class VehicleHistoryTools
 
                     return await _historyService.GetVehicleHistoryAsync(token, vehicleId!, start, end);
                 },
-                successResponse: (result) => System.Text.Json.JsonSerializer.Serialize(result, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+                successResponse: (result) => System.Text.Json.JsonSerializer.Serialize(result, Default));
         }
         catch (ToolValidationException ex)
         {
@@ -167,7 +167,7 @@ public class VehicleHistoryTools
 
                     return await _historyService.GetVehicleTripSummaryAsync(token, vehicleId, start, end);
                 },
-                successResponse: (result) => System.Text.Json.JsonSerializer.Serialize(result, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+                successResponse: (result) => System.Text.Json.JsonSerializer.Serialize(result, Default));
         }
         catch (ToolValidationException ex)
         {

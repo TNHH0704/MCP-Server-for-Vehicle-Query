@@ -61,6 +61,6 @@ public class SecurityValidationResult
             error = ErrorMessage,
             allowedTopics = AllowedTopics,
             hint = "This MCP server only handles fleet management and vehicle tracking queries."
-        }, new JsonSerializerOptions { WriteIndented = true });
+        }, new JsonSerializerOptions { WriteIndented = false });
     }
 }
