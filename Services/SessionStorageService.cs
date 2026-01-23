@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using McpVersionVer2.Models;
 
 namespace McpVersionVer2.Services;
 
@@ -23,6 +24,21 @@ public interface ISessionStorageService
     /// Gets all active session IDs
     /// </summary>
     IEnumerable<string> GetAllSessionIds();
+    
+    /// <summary>
+    /// Stores JWT token pair for a session
+    /// </summary>
+    void StoreSessionTokens(string sessionId, CachedTokenPair tokens);
+    
+    /// <summary>
+    /// Gets stored JWT token pair for a session
+    /// </summary>
+    CachedTokenPair? GetSessionTokens(string sessionId);
+    
+    /// <summary>
+    /// Removes stored tokens for a session
+    /// </summary>
+    void RemoveSessionTokens(string sessionId);
 }
 
 public class InMemorySessionStorageService : ISessionStorageService
@@ -30,6 +46,8 @@ public class InMemorySessionStorageService : ISessionStorageService
     private readonly ConcurrentDictionary<string, string> _tokenToSessionMap = new();
     
     private readonly ConcurrentDictionary<string, DateTime> _sessionLastAccess = new();
+    
+    private readonly ConcurrentDictionary<string, CachedTokenPair> _sessionTokens = new();
     
     private readonly TimeSpan _sessionTimeout = TimeSpan.FromHours(24);
     
@@ -81,12 +99,50 @@ public class InMemorySessionStorageService : ISessionStorageService
         if (_tokenToSessionMap.TryRemove(tokenHash, out var sessionId))
         {
             _sessionLastAccess.TryRemove(sessionId, out _);
+            _sessionTokens.TryRemove(sessionId, out _);
         }
     }
     
     public IEnumerable<string> GetAllSessionIds()
     {
         return _sessionLastAccess.Keys.ToList();
+    }
+    
+    public void StoreSessionTokens(string sessionId, CachedTokenPair tokens)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId) || tokens == null)
+        {
+            return;
+        }
+        
+        _sessionTokens[sessionId] = tokens;
+        _sessionLastAccess[sessionId] = DateTime.UtcNow;
+    }
+    
+    public CachedTokenPair? GetSessionTokens(string sessionId)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId))
+        {
+            return null;
+        }
+        
+        if (_sessionTokens.TryGetValue(sessionId, out var tokens))
+        {
+            _sessionLastAccess[sessionId] = DateTime.UtcNow;
+            return tokens;
+        }
+        
+        return null;
+    }
+    
+    public void RemoveSessionTokens(string sessionId)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId))
+        {
+            return;
+        }
+        
+        _sessionTokens.TryRemove(sessionId, out _);
     }
     
     /// <summary>
@@ -132,6 +188,7 @@ public class InMemorySessionStorageService : ISessionStorageService
         foreach (var sessionId in expiredSessions)
         {
             _sessionLastAccess.TryRemove(sessionId, out _);
+            _sessionTokens.TryRemove(sessionId, out _);
             
             var tokenHashToRemove = _tokenToSessionMap
                 .FirstOrDefault(kvp => kvp.Value == sessionId)

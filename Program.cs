@@ -1,8 +1,3 @@
-using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Hosting;
 using McpVersionVer2.Models;
 using McpVersionVer2.Services;
 using McpVersionVer2.Tools;
@@ -13,6 +8,12 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient("AuthService", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.Add("User-Agent", "McpVersionVer2/1.0");
+});
+
 builder.Services.AddHttpClient();
 builder.Services.Configure<ConversationConfig>(builder.Configuration.GetSection("ConversationContext"));
 builder.Services.AddSingleton<IConversationContextService, InMemoryConversationContextService>();
@@ -46,9 +47,10 @@ builder.Services.AddTransient<VehicleHistoryService>();
 
 builder.Services.AddTransient<AuthService>(sp =>
     new AuthService(
-        sp.GetRequiredService<IHttpClientFactory>().CreateClient(),
+        sp.GetRequiredService<IHttpClientFactory>().CreateClient("AuthService"),
         sp.GetRequiredService<ILogger<AuthService>>(),
-        sp.GetRequiredService<IConfiguration>()
+        sp.GetRequiredService<IConfiguration>(),
+        sp.GetRequiredService<ISessionStorageService>()
     ));
 
 builder.Services.AddTransient<VehicleService>(sp =>
@@ -72,11 +74,10 @@ builder.Services.AddCors(options =>
     options.AddPolicy(name: myAllowSpecificOrigins,
         policy =>
         {
-            // REPLACE with your actual Frontend URL
             policy.WithOrigins("http://0.0.0.0:8080")
                   .AllowAnyHeader()
                   .AllowAnyMethod()
-                  .AllowCredentials(); // Important if using Auth Cookies
+                  .AllowCredentials();
         });
 });
 

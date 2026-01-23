@@ -1,9 +1,6 @@
-using System.Text;
 using System.Text.Json;
 using Azure;
 using Azure.AI.OpenAI;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
 
 namespace McpVersionVer2.Services;
 

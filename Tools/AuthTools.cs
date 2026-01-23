@@ -1,6 +1,6 @@
 using System.ComponentModel;
 using McpVersionVer2.Services;
-using McpVersionVer2.Security;
+using McpVersionVer2.Models;
 using ModelContextProtocol.Server;
 using static McpVersionVer2.Services.AppJsonSerializerOptions;
 
@@ -68,6 +68,69 @@ public class AuthTools
                     expiresAt = DateTime.UtcNow.AddSeconds(result.ExpiresIn).ToString("dd-MM-yyyy HH:mm:ss") + " UTC"
                 },
                 message = "Token refreshed successfully"
+            }, Default);
+        }
+        catch (Exception ex)
+        {
+            return System.Text.Json.JsonSerializer.Serialize(new
+            {
+                success = false,
+                error = ex.Message,
+                errorCode = "INTERNAL_ERROR"
+            }, Default);
+        }
+        }
+
+    [McpServerTool, Description("AUTH ONLY: Login with username and password to get JWT bearer token. Returns access and refresh tokens. REJECT: non-auth queries.")]
+    public async Task<string> Login(
+        [Description("Username or phone number for login")] string username,
+        [Description("Password for login")] string password)
+    {
+        var queryContext = "user login authentication";
+        var validation = await _securityService.ValidateQueryAsync(queryContext, "auth", "login_tool");
+        if (!validation.IsValid)
+        {
+            return validation.ToJsonResponse();
+        }
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+            {
+                return System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    success = false,
+                    error = "Username and password are required",
+                    errorCode = "MISSING_CREDENTIALS"
+                }, Default);
+            }
+
+            var result = await _authService.LoginAsync(username, password);
+
+            if (result == null)
+            {
+                return System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    success = false,
+                    error = "Login failed. Please check your credentials and try again.",
+                    errorCode = "LOGIN_FAILED"
+                }, Default);
+            }
+
+            return System.Text.Json.JsonSerializer.Serialize(new
+            {
+                success = true,
+                data = new
+                {
+                    accessToken = result.AccessToken,
+                    refreshToken = result.RefreshToken,
+                    expiresIn = result.ExpiresIn,
+                    tokenType = result.TokenType,
+                    expiresAt = result.LoginTime.AddSeconds(result.ExpiresIn).ToString("dd-MM-yyyy HH:mm:ss") + " UTC",
+                    sessionId = result.SessionId,
+                    loginTime = result.LoginTime.ToString("dd-MM-yyyy HH:mm:ss") + " UTC"
+                },
+                message = "Login successful. Your session is now active and tokens are stored automatically."
             }, Default);
         }
         catch (Exception ex)

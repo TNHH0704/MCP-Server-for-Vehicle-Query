@@ -1,8 +1,7 @@
-using System.ComponentModel;
 using McpVersionVer2.Models;
 using McpVersionVer2.Services;
 using McpVersionVer2.Security;
-using McpVersionVer2.Tools;
+using System.Net.Http;
 
 namespace McpVersionVer2.Helpers;
 
@@ -192,5 +191,60 @@ public static class ToolHelperExtensions
         {
             RequestContextService.Clear();
         }
+    }
+
+    /// <summary>
+    /// Extension method for HttpClient to send authenticated requests with automatic token management
+    /// </summary>
+    public static async Task<HttpResponseMessage> SendAuthenticatedAsync(
+        this HttpClient httpClient,
+        HttpRequestMessage request,
+        string sessionId,
+        AuthService authService)
+    {
+        return await authService.SendAuthenticatedRequestAsync(request, sessionId);
+    }
+
+    /// <summary>
+    /// Extension method for HttpClient to send GET requests with automatic authentication
+    /// </summary>
+    public static async Task<HttpResponseMessage> GetAuthenticatedAsync(
+        this HttpClient httpClient,
+        string requestUri,
+        string sessionId,
+        AuthService authService)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
+        return await authService.SendAuthenticatedRequestAsync(request, sessionId);
+    }
+
+    /// <summary>
+    /// Extension method for HttpClient to send POST requests with automatic authentication
+    /// </summary>
+    public static async Task<HttpResponseMessage> PostAuthenticatedAsync(
+        this HttpClient httpClient,
+        string requestUri,
+        HttpContent content,
+        string sessionId,
+        AuthService authService)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, requestUri) { Content = content };
+        return await authService.SendAuthenticatedRequestAsync(request, sessionId);
+    }
+
+    /// <summary>
+    /// Creates a new HttpRequestMessage with authentication headers
+    /// </summary>
+    public static async Task<HttpRequestMessage> CreateAuthenticatedRequestAsync(
+        this HttpRequestMessage request,
+        string sessionId,
+        AuthService authService)
+    {
+        var token = await authService.GetValidTokenAsync(sessionId);
+        if (token != null)
+        {
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        }
+        return request;
     }
 }
