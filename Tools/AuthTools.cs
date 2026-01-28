@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using McpVersionVer2.Services;
 using McpVersionVer2.Models;
+using McpVersionVer2.Utils;
 using ModelContextProtocol.Server;
 using static McpVersionVer2.Services.AppJsonSerializerOptions;
 
@@ -65,7 +66,7 @@ public class AuthTools
                     refreshToken = result.RefreshToken,
                     expiresIn = result.ExpiresIn,
                     tokenType = result.TokenType,
-                    expiresAt = DateTime.UtcNow.AddSeconds(result.ExpiresIn).ToString("dd-MM-yyyy HH:mm:ss") + " UTC"
+                    expiresAt = DateUtils.FormatForApiUtc(DateTime.UtcNow.AddSeconds(result.ExpiresIn))
                 },
                 message = "Token refreshed successfully"
             }, Default);
@@ -79,7 +80,7 @@ public class AuthTools
                 errorCode = "INTERNAL_ERROR"
             }, Default);
         }
-        }
+    }
 
     [McpServerTool, Description("AUTH ONLY: Login with username and password to get JWT bearer token. Returns access and refresh tokens. REJECT: non-auth queries.")]
     public async Task<string> Login(
@@ -126,9 +127,9 @@ public class AuthTools
                     refreshToken = result.RefreshToken,
                     expiresIn = result.ExpiresIn,
                     tokenType = result.TokenType,
-                    expiresAt = result.LoginTime.AddSeconds(result.ExpiresIn).ToString("dd-MM-yyyy HH:mm:ss") + " UTC",
+                    expiresAt = DateUtils.FormatForApiUtc(result.LoginTime.AddSeconds(result.ExpiresIn)),
                     sessionId = result.SessionId,
-                    loginTime = result.LoginTime.ToString("dd-MM-yyyy HH:mm:ss") + " UTC"
+                    loginTime = DateUtils.FormatForApiUtc(result.LoginTime)
                 },
                 message = "Login successful. Your session is now active and tokens are stored automatically."
             }, Default);

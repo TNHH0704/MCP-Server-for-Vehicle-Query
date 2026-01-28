@@ -120,3 +120,6 @@ Dockerfile
 docker-compose.yml
 README-Docker.md
 AGENTS.md
+
+.github/
+wwwroot/

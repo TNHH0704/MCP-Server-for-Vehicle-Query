@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using McpVersionVer2.Services;
+using McpVersionVer2.Services.Mappers;
 using McpVersionVer2.Security;
 using McpVersionVer2.Helpers;
 using ModelContextProtocol.Server;
@@ -41,36 +42,26 @@ public class VehicleInfoTools
     {
         var queryContext = $"GetVehicleInfo plate:{plate ?? ""} id:{id ?? ""} group:{group ?? ""}";
 
-        try
-        {
-            return await _securityService.ExecuteValidatedToolRequestWithContext(
-                queryContext: queryContext,
-                domain: "vehicle_registry",
-                bearerToken: bearerToken,
-                contextService: _contextService,
-                requestContext: _requestContext,
-                action: async (token) => 
-                {
-                    var vehicles = await _vehicleService.GetVehiclesWithFilterAsync(token, plate, id, group);
-                    vehicles.RequireNonEmptyResult("vehicles");
-                    return vehicles;
-                },
-                successResponse: (vehicles) => 
-                {
-                    object result = (plate == null && id == null && group == null)
-                        ? _mapper.MapToBasicList(vehicles)
-                        : _mapper.MapToDtos(vehicles);
-                    return System.Text.Json.JsonSerializer.Serialize(result, Default);
-                });
-        }
-        catch (ToolValidationException ex)
-        {
-            return ex.ErrorResponse;
-        }
-        catch (Exception ex)
-        {
-            return System.Text.Json.JsonSerializer.Serialize(new { error = ex.Message }, Default);
-        }
+        return await ToolExecutionHelper.ExecuteValidatedToolRequestWithContextAsync(
+            securityService: _securityService,
+            queryContext: queryContext,
+            domain: "vehicle_registry",
+            bearerToken: bearerToken,
+            contextService: _contextService,
+            requestContext: _requestContext,
+            action: async (token) => 
+            {
+                var vehicles = await _vehicleService.GetVehiclesWithFilterAsync(token, plate, id, group);
+                vehicles.RequireNonEmptyResult("vehicles");
+                return vehicles;
+            },
+            successResponse: (vehicles) => 
+            {
+                object result = (plate == null && id == null && group == null)
+                    ? _mapper.MapToBasicList(vehicles)
+                    : _mapper.MapToDtos(vehicles);
+                return System.Text.Json.JsonSerializer.Serialize(result, Default);
+            });
     }
 
     [McpServerTool, Description("VEHICLE REGISTRY ONLY: Get fleet statistics (total vehicles, by type, by group). Returns counts and breakdowns by vehicle type and group. REJECT: non-vehicle queries.")]
@@ -79,30 +70,20 @@ public class VehicleInfoTools
     {
         var queryContext = "GetFleetStatistics fleet statistics";
 
-        try
-        {
-            return await _securityService.ExecuteValidatedToolRequestWithContext(
-                queryContext: queryContext,
-                domain: "vehicle_registry",
-                bearerToken: bearerToken,
-                contextService: _contextService,
-                requestContext: _requestContext,
-                action: async (token) => 
-                {
-                    var vehicles = await _vehicleService.GetVehiclesWithFilterAsync(token);
-                    vehicles.RequireNonEmptyResult("vehicles");
-                    return _mapper.GenerateStatistics(vehicles);
-                },
-                successResponse: (stats) => System.Text.Json.JsonSerializer.Serialize(stats, Default));
-        }
-        catch (ToolValidationException ex)
-        {
-            return ex.ErrorResponse;
-        }
-        catch (Exception ex)
-        {
-            return System.Text.Json.JsonSerializer.Serialize(new { error = ex.Message }, Default);
-        }
+        return await ToolExecutionHelper.ExecuteValidatedToolRequestWithContextAsync(
+            securityService: _securityService,
+            queryContext: queryContext,
+            domain: "vehicle_registry",
+            bearerToken: bearerToken,
+            contextService: _contextService,
+            requestContext: _requestContext,
+            action: async (token) => 
+            {
+                var vehicles = await _vehicleService.GetVehiclesWithFilterAsync(token);
+                vehicles.RequireNonEmptyResult("vehicles");
+                return _mapper.GenerateStatistics(vehicles);
+            },
+            successResponse: (stats) => System.Text.Json.JsonSerializer.Serialize(stats, Default));
     }
 
     [McpServerTool, Description("VEHICLE REGISTRY ONLY: Get vehicles with expired or expiring soon insurance/registry. Returns vehicles with compliance status and days until expiry. REJECT: non-vehicle queries.")]
@@ -111,41 +92,31 @@ public class VehicleInfoTools
     {
         var queryContext = "GetVehiclesWithExpiredCompliance compliance insurance registry expired";
 
-        try
-        {
-            return await _securityService.ExecuteValidatedToolRequestWithContext(
-                queryContext: queryContext,
-                domain: "vehicle_registry",
-                bearerToken: bearerToken,
-                contextService: _contextService,
-                requestContext: _requestContext,
-                action: async (token) => 
+        return await ToolExecutionHelper.ExecuteValidatedToolRequestWithContextAsync(
+            securityService: _securityService,
+            queryContext: queryContext,
+            domain: "vehicle_registry",
+            bearerToken: bearerToken,
+            contextService: _contextService,
+            requestContext: _requestContext,
+            action: async (token) => 
+            {
+                var vehicles = await _vehicleService.GetVehiclesWithFilterAsync(token);
+                return _mapper.MapToDtos(vehicles);
+            },
+            successResponse: (dtos) => System.Text.Json.JsonSerializer.Serialize(new
+            {
+                totalCount = dtos.Count,
+                vehicles = dtos.Select(d => new
                 {
-                    var vehicles = await _vehicleService.GetVehiclesWithFilterAsync(token);
-                    return _mapper.MapToDtos(vehicles);
-                },
-                successResponse: (dtos) => System.Text.Json.JsonSerializer.Serialize(new
-                {
-                    totalCount = dtos.Count,
-                    vehicles = dtos.Select(d => new
-                    {
-                        plate = d.Plate,
-                        displayName = d.DisplayName,
-                        company = d.Company.Name,
-                        insuranceExpired = d.Dates.IsInsuranceExpired,
-                        registryExpired = d.Dates.IsRegistryExpired,
-                        insuranceExpiresIn = d.Dates.DaysUntilInsuranceExpires,
-                        registryExpiresIn = d.Dates.DaysUntilRegistryExpires
-                    })
-                }, Default));
-        }
-        catch (ToolValidationException ex)
-        {
-            return ex.ErrorResponse;
-        }
-        catch (Exception ex)
-        {
-            return System.Text.Json.JsonSerializer.Serialize(new { error = ex.Message }, Default);
-        }
+                    plate = d.Plate,
+                    displayName = d.DisplayName,
+                    company = d.Company.Name,
+                    insuranceExpired = d.Dates.IsInsuranceExpired,
+                    registryExpired = d.Dates.IsRegistryExpired,
+                    insuranceExpiresIn = d.Dates.DaysUntilInsuranceExpires,
+                    registryExpiresIn = d.Dates.DaysUntilRegistryExpires
+                })
+            }, Default));
     }
 }

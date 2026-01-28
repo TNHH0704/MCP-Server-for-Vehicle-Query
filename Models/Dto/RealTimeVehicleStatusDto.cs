@@ -1,4 +1,7 @@
-namespace McpVersionVer2.Models;
+using McpVersionVer2.Services;
+using McpVersionVer2.Services.Mappers;
+
+namespace McpVersionVer2.Models.Dto;
 
 public class RealTimeVehicleStatusDto
 {
@@ -109,48 +112,4 @@ public class RealTimeTimestampsDto
     public DateTime? AccOffTime { get; set; }
     public string GpsTimeFormatted => GpsTime.ToString("dd-MM-yyyy HH:mm:ss");
     public string LastStopTimeFormatted => LastUpdateTime.ToString("dd-MM-yyyy HH:mm:ss");
-}
-
-/// <summary>
-/// Summary DTO for real-time vehicle status list
-/// </summary>
-public class RealTimeVehicleStatusSummaryDto
-{
-    public string Plate { get; set; } = string.Empty;
-    public string DisplayName { get; set; } = string.Empty;
-    public string Group { get; set; } = string.Empty;
-    public string Status { get; set; } = string.Empty;
-    public string Speed { get; set; } = string.Empty;
-    public string MaxSpeed { get; set; } = string.Empty;
-    public string Location { get; set; } = string.Empty;
-    public string LastUpdate { get; set; } = string.Empty;
-    public string LastStopTime { get; set; } = string.Empty;
-    public bool IsRunning { get; set; }
-}
-
-/// <summary>
-/// Search result wrapper for real-time vehicle status
-/// </summary>
-public class RealTimeVehicleStatusSearchResult
-{
-    public int TotalCount { get; set; }
-    public string SearchCriteria { get; set; } = string.Empty;
-    public List<RealTimeVehicleStatusSummaryDto> Vehicles { get; set; } = new();
-}
-
-/// <summary>
-/// Daily statistics summary DTO
-/// </summary>
-public class DailyStatisticsSummaryDto
-{
-    public string Plate { get; set; } = string.Empty;
-    public string DisplayName { get; set; } = string.Empty;
-    public string GpsMileage { get; set; } = string.Empty;
-    public string RunTime { get; set; } = string.Empty;
-    public int EngineOffCount { get; set; }
-    public int VehicleStopCount { get; set; }
-    public int OverSpeed { get; set; }
-    public string MaxSpeed { get; set; } = string.Empty;
-    public string IdleTime { get; set; } = string.Empty;
-    public string StopTime { get; set; } = string.Empty;
 }

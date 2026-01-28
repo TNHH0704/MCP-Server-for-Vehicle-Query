@@ -1,4 +1,5 @@
 using McpVersionVer2.Models;
+using McpVersionVer2.Utils;
 
 namespace McpVersionVer2.Services;
 
@@ -17,8 +18,6 @@ public class VehicleHistoryService
     private readonly WaypointService _waypointService;
     private readonly VehicleService _vehicleService;
 
-    private static readonly DateTime GpsEpoch = new DateTime(2010, 1, 1, 0, 0, 0, DateTimeKind.Local);
-
     public VehicleHistoryService(
         WaypointService waypointService,
         VehicleService vehicleService)
@@ -32,7 +31,7 @@ public class VehicleHistoryService
     /// </summary>
     public static DateTime ConvertGpsTimeToDateTime(int gpsTime)
     {
-        return GpsEpoch.AddSeconds(gpsTime);
+        return DateUtils.FromGpsEpoch(gpsTime);
     }
 
     /// <summary>
@@ -59,7 +58,7 @@ public class VehicleHistoryService
     /// </summary>
     private static double RoundTo6Decimals(double value)
     {
-        return Math.Round(value, 6);
+        return GisUtils.RoundCoordinateTo6Decimals(value);
     }
 
     #region Helper Methods
@@ -124,12 +123,10 @@ public class VehicleHistoryService
             if (i > 0)
             {
                 var prev = waypoints[i - 1];
-                var lat1 = prev.Y / GPS_COORDINATE_DIVISOR;
-                var lon1 = prev.X / GPS_COORDINATE_DIVISOR;
-                var lat2 = w.Y / GPS_COORDINATE_DIVISOR;
-                var lon2 = w.X / GPS_COORDINATE_DIVISOR;
+                var (lat1, lon1) = GisUtils.ConvertGpsCoordinates(prev.X, prev.Y);
+                var (lat2, lon2) = GisUtils.ConvertGpsCoordinates(w.X, w.Y);
 
-                int distanceInMeters = GisUtil.GetDistance(lon1, lat1, lon2, lat2);
+                int distanceInMeters = GisUtils.GetDistance(lon1, lat1, lon2, lat2);
 
                 double distanceKm = distanceInMeters / DISTANCE_DIVISOR;
                 cumulativeDistanceKm += distanceKm;
@@ -188,10 +185,10 @@ public class VehicleHistoryService
 
             summaries.Add(new WaypointSummary
             {
-                Timestamp = ConvertGpsTimeToDateTime(w.GpsTime).ToString("dd-MM-yyyy HH:mm:ss"),
+                Timestamp = DateUtils.FormatForApi(ConvertGpsTimeToDateTime(w.GpsTime)),
                 RawGpsTime = w.GpsTime,
-                Latitude = RoundTo6Decimals(w.Y / GPS_COORDINATE_DIVISOR),
-                Longitude = RoundTo6Decimals(w.X / GPS_COORDINATE_DIVISOR),
+                Latitude = GisUtils.RoundCoordinateTo6Decimals(w.Y / GPS_COORDINATE_DIVISOR),
+                Longitude = GisUtils.RoundCoordinateTo6Decimals(w.X / GPS_COORDINATE_DIVISOR),
                 Altitude = w.Z,
                 Speed = currentSpeed,
                 Heading = w.Heading,
@@ -262,7 +259,7 @@ public class VehicleHistoryService
     /// </summary>
     private static bool IsValidCoordinate(double lat, double lon)
     {
-        return lat != 0 && lon != 0;
+        return GisUtils.IsValidCoordinate(lat, lon);
     }
 
     #endregion
@@ -285,8 +282,8 @@ public class VehicleHistoryService
             return CreateEmptyHistoryResult(vehicleId, startTime, endTime);
         }
 
-        var startGpsTime = (int)(startTime - GpsEpoch).TotalSeconds;
-        var endGpsTime = (int)(endTime - GpsEpoch).TotalSeconds;
+        var startGpsTime = DateUtils.ToGpsEpoch(startTime);
+        var endGpsTime = DateUtils.ToGpsEpoch(endTime);
         var filteredWaypoints = GetFilteredAndSortedWaypoints(waypoints, startGpsTime, endGpsTime);
 
         if (!filteredWaypoints.Any())
@@ -354,7 +351,7 @@ public class VehicleHistoryService
         var endTime = startTime.AddDays(1).AddSeconds(-1);
 
         var result = await GetVehicleHistoryAsync(bearerToken, vehicleId, startTime, endTime);
-        result.Date = date.ToString("dd-MM-yyyy");
+        result.Date = DateUtils.FormatDateOnly(date);
         return result;
     }
 
@@ -374,8 +371,8 @@ public class VehicleHistoryService
             throw new InvalidOperationException($"No waypoints found for vehicle {vehicleId}.");
         }
 
-        var startGpsTime = (int)(startTime - GpsEpoch).TotalSeconds;
-        var endGpsTime = (int)(endTime - GpsEpoch).TotalSeconds;
+        var startGpsTime = DateUtils.ToGpsEpoch(startTime);
+        var endGpsTime = DateUtils.ToGpsEpoch(endTime);
         var filteredWaypoints = GetFilteredAndSortedWaypoints(waypoints, startGpsTime, endGpsTime);
 
         if (filteredWaypoints.Count < 2)
@@ -383,8 +380,8 @@ public class VehicleHistoryService
             return new VehicleTripSummary
             {
                 VehicleId = vehicleId,
-                StartTime = startTime.ToString("dd-MM-yyyy HH:mm:ss"),
-                EndTime = endTime.ToString("dd-MM-yyyy HH:mm:ss"),
+                StartTime = DateUtils.FormatForApi(startTime),
+                EndTime = DateUtils.FormatForApi(endTime),
                 TotalDistanceKm = 0,
                 DurationHours = Math.Round((endTime - startTime).TotalSeconds / 3600.0, 2),
                 AverageSpeedKmh = 0,
@@ -429,8 +426,8 @@ public class VehicleHistoryService
         return new VehicleTripSummary
         {
             VehicleId = vehicleId,
-            StartTime = ConvertGpsTimeToDateTime(firstWaypoint.GpsTime).ToString("dd-MM-yyyy HH:mm:ss"),
-            EndTime = ConvertGpsTimeToDateTime(lastWaypoint.GpsTime).ToString("dd-MM-yyyy HH:mm:ss"),
+            StartTime = DateUtils.FormatForApi(ConvertGpsTimeToDateTime(firstWaypoint.GpsTime)),
+            EndTime = DateUtils.FormatForApi(ConvertGpsTimeToDateTime(lastWaypoint.GpsTime)),
             TotalDistanceKm = Math.Round(totalGpsDistance, 3),
             DurationHours = Math.Round(durationSeconds / 3600.0, 2),
             AverageSpeedKmh = Math.Round(allSpeeds.Average(), 2), 
@@ -440,11 +437,11 @@ public class VehicleHistoryService
             MovingWaypoints = movingWaypointsFiltered.Count,
             AmountOfTimeStop = amountOfTimeStop, 
             AmountOfTimeRunning = amountOfTimeRunning, 
-            StartLatitude = RoundTo6Decimals(firstWaypoint.Y / GPS_COORDINATE_DIVISOR),
-            StartLongitude = RoundTo6Decimals(firstWaypoint.X / GPS_COORDINATE_DIVISOR),
+            StartLatitude = GisUtils.RoundCoordinateTo6Decimals(firstWaypoint.Y / GPS_COORDINATE_DIVISOR),
+            StartLongitude = GisUtils.RoundCoordinateTo6Decimals(firstWaypoint.X / GPS_COORDINATE_DIVISOR),
             StartInfo = firstWaypoint.Info ?? "",
-            EndLatitude = RoundTo6Decimals(lastWaypoint.Y / GPS_COORDINATE_DIVISOR),
-            EndLongitude = RoundTo6Decimals(lastWaypoint.X / GPS_COORDINATE_DIVISOR),
+            EndLatitude = GisUtils.RoundCoordinateTo6Decimals(lastWaypoint.Y / GPS_COORDINATE_DIVISOR),
+            EndLongitude = GisUtils.RoundCoordinateTo6Decimals(lastWaypoint.X / GPS_COORDINATE_DIVISOR),
             EndInfo = lastWaypoint.Info ?? ""
         };
     }

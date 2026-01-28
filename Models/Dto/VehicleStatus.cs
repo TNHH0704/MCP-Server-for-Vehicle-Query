@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace McpVersionVer2.Models;
+namespace McpVersionVer2.Models.Dto;
 
 /// <summary>
 /// Root response model for vehicle status API
@@ -95,10 +95,10 @@ public class VehicleStatus
     public long StopOrIdleTime { get; set; }
 
     [JsonPropertyName("trip")]
-    public TripInfo? Trip { get; set; }
+    public Trip? Trip { get; set; }
 
     [JsonPropertyName("daily")]
-    public DailyStatistics? Daily { get; set; }
+    public Daily? Daily { get; set; }
 
     [JsonPropertyName("totalMileage")]
     public int TotalMileage { get; set; }
@@ -165,84 +165,6 @@ public class VehicleGroupInfo
 
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// Trip information for a vehicle
-/// </summary>
-public class TripInfo
-{
-    [JsonPropertyName("fromTime")]
-    public long FromTime { get; set; }
-
-    [JsonPropertyName("toTime")]
-    public long ToTime { get; set; }
-
-    [JsonPropertyName("gpsMileage")]
-    public int GpsMileage { get; set; }
-
-    [JsonPropertyName("from")]
-    public string From { get; set; } = string.Empty;
-
-    [JsonPropertyName("to")]
-    public string To { get; set; } = string.Empty;
-
-    [JsonPropertyName("duration")]
-    public int Duration { get; set; }
-
-    [JsonPropertyName("maxSpeed")]
-    public int MaxSpeed { get; set; }
-
-    [JsonPropertyName("minSpeed")]
-    public int MinSpeed { get; set; }
-
-    [JsonPropertyName("averageSpeed")]
-    public int AverageSpeed { get; set; }
-
-    [JsonPropertyName("waypoint")]
-    public int Waypoint { get; set; }
-
-    [JsonPropertyName("status")]
-    public int Status { get; set; }
-}
-
-/// <summary>
-/// Daily statistics for a vehicle
-/// </summary>
-public class DailyStatistics
-{
-    [JsonPropertyName("stopCount")]
-    public int StopCount { get; set; }
-
-    [JsonPropertyName("idleCount")]
-    public int IdleCount { get; set; }
-
-    [JsonPropertyName("doorCloseCount")]
-    public int DoorCloseCount { get; set; }
-
-    [JsonPropertyName("doorOpenCount")]
-    public int DoorOpenCount { get; set; }
-
-    [JsonPropertyName("gpsMileage")]
-    public int GpsMileage { get; set; }
-
-    [JsonPropertyName("runTime")]
-    public int RunTime { get; set; }
-
-    [JsonPropertyName("overSpeed")]
-    public int OverSpeed { get; set; }
-
-    [JsonPropertyName("accTime")]
-    public int AccTime { get; set; }
-
-    [JsonPropertyName("maxSpeed")]
-    public int MaxSpeed { get; set; }
-
-    [JsonPropertyName("idleTime")]
-    public int IdleTime { get; set; }
-
-    [JsonPropertyName("stopTime")]
-    public int StopTime { get; set; }
 }
 
 /// <summary>

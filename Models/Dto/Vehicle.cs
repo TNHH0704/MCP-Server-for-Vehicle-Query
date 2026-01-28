@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace McpVersionVer2.Models;
+namespace McpVersionVer2.Models.Dto;
 
 public class ApiResponse<T>
 {

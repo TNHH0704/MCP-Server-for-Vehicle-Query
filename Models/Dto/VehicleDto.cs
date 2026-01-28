@@ -1,4 +1,7 @@
-namespace McpVersionVer2.Models;
+using McpVersionVer2.Services;
+using McpVersionVer2.Services.Mappers;
+
+namespace McpVersionVer2.Models.Dto;
 
 /// <summary>
 /// DTO for presenting vehicle data to MCP tools with processed/enriched information
@@ -7,7 +10,7 @@ public class VehicleDto
 {
     public string Id { get; set; } = string.Empty;
     public string Plate { get; set; } = string.Empty;
-    public string DisplayName { get; set; } = string.Empty; 
+    public string DisplayName { get; set; } = string.Empty;
     public string VehicleType { get; set; } = string.Empty;
     public string VehicleGroup { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
@@ -61,7 +64,7 @@ public class VehicleStatusDto
     public int CurrentSpeed { get; set; }
     public int MaxSpeed { get; set; }
     public bool IsOverSpeed { get; set; }
-    public string SpeedDescription { get; set; } = string.Empty; 
+    public string SpeedDescription { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -69,13 +72,13 @@ public class VehicleStatusDto
 /// </summary>
 public class LocationDto
 {
-    public double Latitude { get; set; } 
-    public double Longitude { get; set; } 
-    public string FormattedCoordinates { get; set; } = string.Empty; 
-    public string Address { get; set; } = string.Empty; 
-    public DateTime? GpsTimestamp { get; set; } 
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
+    public string FormattedCoordinates { get; set; } = string.Empty;
+    public string Address { get; set; } = string.Empty;
+    public DateTime? GpsTimestamp { get; set; }
     public string GpsColor { get; set; } = string.Empty;
-    public bool HasValidGps { get; set; } 
+    public bool HasValidGps { get; set; }
 }
 
 /// <summary>
@@ -102,45 +105,4 @@ public class VehicleFlagsDto
     public bool IsActive { get; set; }
     public bool IsLocked { get; set; }
     public bool IsAssigned { get; set; }
-}
-
-/// <summary>
-/// Simplified vehicle summary for quick overview
-/// </summary>
-public class VehicleSummaryDto
-{
-    public string Plate { get; set; } = string.Empty;
-    public string DisplayName { get; set; } = string.Empty;
-    public string Status { get; set; } = string.Empty;
-    public int Speed { get; set; }
-    public string Company { get; set; } = string.Empty;
-    public bool IsActive { get; set; }
-    public string LastUpdated { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// Fleet statistics DTO for aggregated data
-/// </summary>
-public class FleetStatisticsDto
-{
-    public int TotalVehicles { get; set; }
-    public int ActiveVehicles { get; set; }
-    public int InactiveVehicles { get; set; }
-    public Dictionary<string, int> VehiclesByStatus { get; set; } = new();
-    public Dictionary<string, int> VehiclesByCompany { get; set; } = new();
-    public Dictionary<string, int> VehiclesByType { get; set; } = new();
-    public int VehiclesOverSpeed { get; set; }
-    public int VehiclesWithExpiredInsurance { get; set; }
-    public int VehiclesWithExpiredRegistry { get; set; }
-    public DateTime LastUpdated { get; set; }
-}
-
-/// <summary>
-/// DTO for vehicle search results
-/// </summary>
-public class VehicleSearchResultDto
-{
-    public int TotalCount { get; set; }
-    public List<VehicleSummaryDto> Vehicles { get; set; } = new();
-    public string SearchCriteria { get; set; } = string.Empty;
 }

@@ -1,15 +1,23 @@
 using McpVersionVer2.Models;
+using McpVersionVer2.Models.Dto;
+using McpVersionVer2.Utils;
 
-namespace McpVersionVer2.Services;
+namespace McpVersionVer2.Services.Mappers;
 
 /// <summary>
 /// Service for mapping raw vehicle data to processed DTOs
 /// </summary>
-public class VehicleMapperService
+public class VehicleMapperService : IMapper<VehicleResponse, VehicleSummaryDto>
 {
+    private readonly SecurityValidationService _securityService;
     private const double SPEED_DIVISOR = 100.0;
     private const double DISTANCE_DIVISOR = 1000.0;
     private const double GPS_COORDINATE_DIVISOR = 1_000_000.0;
+
+    public VehicleMapperService(SecurityValidationService securityService)
+    {
+        _securityService = securityService;
+    }
 
     /// <summary>
     /// Maps a raw VehicleResponse to a processed VehicleDto
@@ -19,29 +27,28 @@ public class VehicleMapperService
         var dto = new VehicleDto
         {
             Id = vehicle.Id,
-            Plate = vehicle.Plate,
-            DisplayName = ProcessDisplayName(vehicle.CustomPlateNumber, vehicle.Plate),
-            VehicleType = vehicle.VehicleTypeName,
-            VehicleGroup = vehicle.VehicleGroupName,
-            Description = vehicle.Description,
-            LastUpdatedBy = vehicle.UpdatedByName,
-            LastUpdated = vehicle.UpdatedAt,
+            Plate = _securityService.SanitizeOutput(vehicle.Plate),
+            DisplayName = _securityService.SanitizeOutput(ProcessDisplayName(vehicle.CustomPlateNumber, vehicle.Plate)),
+            VehicleType = _securityService.SanitizeOutput(vehicle.VehicleTypeName),
+            VehicleGroup = _securityService.SanitizeOutput(vehicle.VehicleGroupName),
+            Description = _securityService.SanitizeOutput(vehicle.Description),
+            LastUpdatedBy = _securityService.SanitizeOutput(vehicle.UpdatedByName),
 
             Company = new CompanyInfo
             {
                 Id = vehicle.CompanyId,
-                Name = vehicle.CompanyName,
-                Phone = vehicle.CompanyPhone
+                Name = _securityService.SanitizeOutput(vehicle.CompanyName),
+                Phone = _securityService.SanitizeOutput(vehicle.CompanyPhone)
             },
 
             Device = new DeviceInfo
             {
                 Id = vehicle.DeviceId,
-                Type = vehicle.DeviceTypeName,
-                Imei = vehicle.Imei,
-                SimPhone = vehicle.SimPhone,
-                Iccid = vehicle.Iccid,
-                FirmwareVersion = vehicle.FirmwareVersion
+                Type = _securityService.SanitizeOutput(vehicle.DeviceTypeName),
+                Imei = _securityService.SanitizeOutput(vehicle.Imei),
+                SimPhone = _securityService.SanitizeOutput(vehicle.SimPhone),
+                Iccid = _securityService.SanitizeOutput(vehicle.Iccid),
+                FirmwareVersion = _securityService.SanitizeOutput(vehicle.FirmwareVersion)
             },
 
             Status = MapStatus(vehicle),
@@ -74,13 +81,13 @@ public class VehicleMapperService
     {
         return new VehicleSummaryDto
         {
-            Plate = vehicle.Plate,
-            DisplayName = ProcessDisplayName(vehicle.CustomPlateNumber, vehicle.Plate),
-            Status = vehicle.RawStatus?.StatusName ?? "Unknown",
+            Plate = _securityService.SanitizeOutput(vehicle.Plate),
+            DisplayName = _securityService.SanitizeOutput(ProcessDisplayName(vehicle.CustomPlateNumber, vehicle.Plate)),
+            Status = _securityService.SanitizeOutput(vehicle.RawStatus?.StatusName ?? "Unknown"),
             Speed = (int)((vehicle.RawStatus?.Speed ?? 0) / SPEED_DIVISOR),
-            Company = vehicle.CompanyName,
+            Company = _securityService.SanitizeOutput(vehicle.CompanyName),
             IsActive = vehicle.IsActive,
-            LastUpdated = vehicle.UpdatedAt.ToString("dd-MM-yyyy HH:mm:ss")
+            LastUpdated = DateUtils.FormatForApi(vehicle.UpdatedAt)
         };
     }
 
@@ -89,7 +96,23 @@ public class VehicleMapperService
     /// </summary>
     public List<VehicleSummaryDto> MapToSummaries(List<VehicleResponse> vehicles)
     {
-        return vehicles.Select(MapToSummary).ToList();
+        return this.MapList(vehicles);
+    }
+
+    /// <summary>
+    /// Maps a single vehicle to summary (IMapper implementation)
+    /// </summary>
+    VehicleSummaryDto IMapper<VehicleResponse, VehicleSummaryDto>.MapToDto(VehicleResponse source)
+    {
+        return MapToSummary(source);
+    }
+
+    /// <summary>
+    /// Maps multiple vehicles to summaries (IMapper implementation)
+    /// </summary>
+    List<VehicleSummaryDto> IMapper<VehicleResponse, VehicleSummaryDto>.MapToDtos(IEnumerable<VehicleResponse> sources)
+    {
+        return sources.Select(MapToSummary).ToList();
     }
 
     /// <summary>
@@ -99,17 +122,17 @@ public class VehicleMapperService
     {
         return vehicles.Select(v => new
         {
-            plate = v.Plate,
-            customPlateNumber = v.CustomPlateNumber,
-            vin = v.Vin,
-            enginNo = v.EnginNo,
-            vehicleTypeName = v.VehicleTypeName,
-            vehicleGroupName = v.VehicleGroupName,
-            simPhone = v.SimPhone,
+            plate = _securityService.SanitizeOutput(v.Plate),
+            customPlateNumber = _securityService.SanitizeOutput(v.CustomPlateNumber),
+            vin = _securityService.SanitizeOutput(v.Vin),
+            enginNo = _securityService.SanitizeOutput(v.EnginNo),
+            vehicleTypeName = _securityService.SanitizeOutput(v.VehicleTypeName),
+            vehicleGroupName = _securityService.SanitizeOutput(v.VehicleGroupName),
+            simPhone = _securityService.SanitizeOutput(v.SimPhone),
             maxSpeed = v.MaxSpeed / SPEED_DIVISOR,
-            description = v.Description,
-            activeDate = v.ActiveDate?.ToString("dd-MM-yyyy HH:mm:ss"),
-            updatedAt = v.UpdatedAt.ToString("dd-MM-yyyy HH:mm:ss")
+            description = _securityService.SanitizeOutput(v.Description),
+            activeDate = v.ActiveDate.HasValue ? DateUtils.FormatForApi(v.ActiveDate.Value) : null,
+            updatedAt = DateUtils.FormatForApi(v.UpdatedAt)
         }).ToList<object>();
     }
 
@@ -158,12 +181,7 @@ public class VehicleMapperService
         List<VehicleResponse> vehicles,
         string searchCriteria)
     {
-        return new VehicleSearchResultDto
-        {
-            TotalCount = vehicles.Count,
-            Vehicles = MapToSummaries(vehicles),
-            SearchCriteria = searchCriteria
-        };
+        return (VehicleSearchResultDto)MapperHelpers.CreateSearchResult(MapToSummaries(vehicles), searchCriteria);
     }
 
     #region Private Helper Methods
@@ -220,13 +238,14 @@ public class VehicleMapperService
             return location;
         }
 
-        location.Latitude = rawStatus.Y / GPS_COORDINATE_DIVISOR;
-        location.Longitude = rawStatus.X / GPS_COORDINATE_DIVISOR;
+        var (latitude, longitude) = GisUtils.ConvertGpsCoordinates(rawStatus.X, rawStatus.Y);
+        location.Latitude = latitude;
+        location.Longitude = longitude;
         location.GpsColor = rawStatus.GpsColor;
-        location.HasValidGps = rawStatus.X != 0 && rawStatus.Y != 0;
+        location.HasValidGps = GisUtils.IsValidCoordinate(latitude, longitude);
 
         location.Address = !string.IsNullOrEmpty(rawStatus.Info)
-            ? rawStatus.Info
+            ? _securityService.SanitizeOutput(rawStatus.Info)
             : "Unknown location";
 
         location.FormattedCoordinates = location.HasValidGps

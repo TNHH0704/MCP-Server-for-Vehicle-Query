@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using McpVersionVer2.Services;
+using McpVersionVer2.Services.Mappers;
 using McpVersionVer2.Security;
 using McpVersionVer2.Helpers;
 using ModelContextProtocol.Server;
@@ -56,14 +57,13 @@ public class VehicleHistoryTools
         }
         var queryContext = $"GetVehicleHistory vehicle:{vehicleId ?? plate} {timeRange}";
 
-        try
-        {
-            return await _securityService.ExecuteValidatedToolRequestWithContext(
-                queryContext: queryContext,
-                domain: "history",
-                bearerToken: bearerToken,
-                contextService: _contextService,
-                requestContext: _requestContext,
+        return await ToolExecutionHelper.ExecuteValidatedToolRequestWithContextAsync(
+            _securityService,
+            queryContext: queryContext,
+            domain: "history",
+            bearerToken: bearerToken,
+            contextService: _contextService,
+            requestContext: _requestContext,
                 action: async (token) => 
                 {
                     DateTime start = DateTime.UtcNow;
@@ -120,15 +120,6 @@ public class VehicleHistoryTools
                     return await _historyService.GetVehicleHistoryAsync(token, vehicleId!, start, end);
                 },
                 successResponse: (result) => System.Text.Json.JsonSerializer.Serialize(result, Default));
-        }
-        catch (ToolValidationException ex)
-        {
-            return ex.ErrorResponse;
-        }
-        catch (Exception ex)
-        {
-            return System.Text.Json.JsonSerializer.Serialize(new { error = ex.Message }, Default);
-        }
     }
 
     [McpServerTool, Description("VEHICLE TRACKING ONLY: Get trip summary statistics (distance, speed, duration, start/end locations) for a vehicle over a time range. REJECT: non-vehicle queries.")]
@@ -140,14 +131,13 @@ public class VehicleHistoryTools
     {
         var queryContext = $"GetVehicleTripSummary vehicle:{vehicleId} from:{startTime} to:{endTime}";
 
-        try
-        {
-            return await _securityService.ExecuteValidatedToolRequestWithContext(
-                queryContext: queryContext,
-                domain: "history",
-                bearerToken: bearerToken,
-                contextService: _contextService,
-                requestContext: _requestContext,
+        return await ToolExecutionHelper.ExecuteValidatedToolRequestWithContextAsync(
+            _securityService,
+            queryContext: queryContext,
+            domain: "history",
+            bearerToken: bearerToken,
+            contextService: _contextService,
+            requestContext: _requestContext,
                 action: async (token) => 
                 {
                     if (!_securityService.IsValidVehicleId(vehicleId))
@@ -168,14 +158,5 @@ public class VehicleHistoryTools
                     return await _historyService.GetVehicleTripSummaryAsync(token, vehicleId, start, end);
                 },
                 successResponse: (result) => System.Text.Json.JsonSerializer.Serialize(result, Default));
-        }
-        catch (ToolValidationException ex)
-        {
-            return ex.ErrorResponse;
-        }
-        catch (Exception ex)
-        {
-            return System.Text.Json.JsonSerializer.Serialize(new { error = ex.Message }, Default);
-        }
     }
 }

@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using McpVersionVer2.Models;
+using McpVersionVer2.Models.Dto;
 using McpVersionVer2.Services;
+using McpVersionVer2.Services.Mappers;
 using McpVersionVer2.Security;
 using McpVersionVer2.Helpers;
 using ModelContextProtocol.Server;
@@ -55,34 +57,24 @@ public class VehicleLiveStatusTools
     {
         var queryContext = $"GetVehicleLiveStatus plate:{plate ?? ""} id:{id ?? ""} group:{group ?? ""} type:{type ?? ""} status:{status ?? ""}";
 
-        try
-        {
-            return await _securityService.ExecuteValidatedToolRequestWithContext(
-                queryContext: queryContext,
-                domain: "live_status",
-                bearerToken: bearerToken,
-                contextService: _contextService,
-                requestContext: _requestContext,
-                action: async (token) => 
-                {
-                    var vehicles = await _statusService.GetVehiclesWithFilterAsync(token, plate, id, group, type);
-                    return _statusService.FilterByStatus(vehicles, status);
-                },
-                successResponse: (vehicles) =>
-                {
-                    vehicles.RequireNonEmptyResult("vehicles", "No vehicles found matching the specified criteria.");
-                    var summaries = _mapper.MapToSummaries(vehicles);
-                    return System.Text.Json.JsonSerializer.Serialize(summaries, Default);
-                });
-        }
-        catch (ToolValidationException ex)
-        {
-            return ex.ErrorResponse;
-        }
-        catch (Exception ex)
-        {
-            return System.Text.Json.JsonSerializer.Serialize(new { error = ex.Message }, Default);
-        }
+        return await ToolExecutionHelper.ExecuteValidatedToolRequestWithContextAsync(
+            securityService: _securityService,
+            queryContext: queryContext,
+            domain: "live_status",
+            bearerToken: bearerToken,
+            contextService: _contextService,
+            requestContext: _requestContext,
+            action: async (token) => 
+            {
+                var vehicles = await _statusService.GetVehiclesWithFilterAsync(token, plate, id, group, type);
+                return _statusService.FilterByStatus(vehicles, status);
+            },
+            successResponse: (vehicles) =>
+            {
+                vehicles.RequireNonEmptyResult("vehicles", "No vehicles found matching the specified criteria.");
+                var summaries = _mapper.MapToSummaries(vehicles);
+                return System.Text.Json.JsonSerializer.Serialize(summaries, Default);
+            });
     }
 
     [McpServerTool, Description("VEHICLE DAILY STATS: Get daily statistics (mileage, runtime, max speed, overspeed count, engine off count). Returns GPS mileage, run time, max speed, over-speed events, and stop counts. Optional: filter by plate. REJECT: non-vehicle queries.")]
@@ -92,36 +84,26 @@ public class VehicleLiveStatusTools
     {
         var queryContext = $"GetDailyStatistics daily statistics mileage runtime plate:{plate ?? ""}";
 
-        try
-        {
-            return await _securityService.ExecuteValidatedToolRequestWithContext(
-                queryContext: queryContext,
-                domain: "live_status",
-                bearerToken: bearerToken,
-                contextService: _contextService,
-                requestContext: _requestContext,
-                action: async (token) => 
-                {
-                    var vehicles = await _statusService.GetVehiclesWithFilterAsync(token, plate, null, null, null);
-                    vehicles.RequireNonEmptyResult("vehicle statuses", "No vehicles found.");
-                    return vehicles;
-                },
-                successResponse: (vehicles) =>
-                {
-                    var dailyStats = string.IsNullOrEmpty(plate)
-                        ? _mapper.MapToDailyStatsSummaries(vehicles)
-                        : new List<DailyStatisticsSummaryDto> { _mapper.MapToDailyStatsSummary(vehicles.First()) };
-                    return System.Text.Json.JsonSerializer.Serialize(dailyStats, Default);
-                });
-        }
-        catch (ToolValidationException ex)
-        {
-            return ex.ErrorResponse;
-        }
-        catch (Exception ex)
-        {
-            return System.Text.Json.JsonSerializer.Serialize(new { error = ex.Message }, Default);
-        }
+        return await ToolExecutionHelper.ExecuteValidatedToolRequestWithContextAsync(
+            securityService: _securityService,
+            queryContext: queryContext,
+            domain: "live_status",
+            bearerToken: bearerToken,
+            contextService: _contextService,
+            requestContext: _requestContext,
+            action: async (token) => 
+            {
+                var vehicles = await _statusService.GetVehiclesWithFilterAsync(token, plate, null, null, null);
+                vehicles.RequireNonEmptyResult("vehicle statuses", "No vehicles found.");
+                return vehicles;
+            },
+            successResponse: (vehicles) =>
+            {
+                var dailyStats = string.IsNullOrEmpty(plate)
+                    ? _mapper.MapToDailyStatsSummaries(vehicles)
+                    : new List<DailyStatisticsSummaryDto> { _mapper.MapToDailyStatsSummary(vehicles.First()) };
+                return System.Text.Json.JsonSerializer.Serialize(dailyStats, Default);
+            });
     }
 
     [McpServerTool, Description("VEHICLE DAILY STATUS: Get daily status summary (mileage, runtime, max speed, over-speed count, engine off count, vehicle stop count). Optional: filter by plate. REJECT: non-vehicle queries.")]
@@ -131,43 +113,33 @@ public class VehicleLiveStatusTools
     {
         var queryContext = $"GetVehicleDailyStatus daily status mileage runtime plate:{plate ?? ""}";
 
-        try
-        {
-            return await _securityService.ExecuteValidatedToolRequestWithContext(
-                queryContext: queryContext,
-                domain: "live_status",
-                bearerToken: bearerToken,
-                contextService: _contextService,
-                requestContext: _requestContext,
-                action: async (token) => 
+        return await ToolExecutionHelper.ExecuteValidatedToolRequestWithContextAsync(
+            securityService: _securityService,
+            queryContext: queryContext,
+            domain: "live_status",
+            bearerToken: bearerToken,
+            contextService: _contextService,
+            requestContext: _requestContext,
+            action: async (token) => 
+            {
+                var vehicles = await _statusService.GetVehiclesWithFilterAsync(token, plate, null, null, null);
+                vehicles.RequireNonEmptyResult("vehicle statuses", "No vehicles found.");
+                return vehicles;
+            },
+            successResponse: (vehicles) =>
+            {
+                var dailyStatus = vehicles.Select(v => new
                 {
-                    var vehicles = await _statusService.GetVehiclesWithFilterAsync(token, plate, null, null, null);
-                    vehicles.RequireNonEmptyResult("vehicle statuses", "No vehicles found.");
-                    return vehicles;
-                },
-                successResponse: (vehicles) =>
-                {
-                    var dailyStatus = vehicles.Select(v => new
-                    {
-                        plate = v.Plate,
-                        displayName = v.CustomPlateNumber,
-                        gpsMileage = $"{(v.Daily?.GpsMileage ?? 0) / DISTANCE_DIVISOR:F2} km",
-                        runTime = FormatRunTime(v.Daily?.RunTime ?? 0),
-                        maxSpeed = $"{(v.Daily?.MaxSpeed ?? 0) / SPEED_DIVISOR:F1} km/h",
-                        overSpeedCount = v.Daily?.OverSpeed ?? 0,
-                        engineOffCount = v.Daily?.StopCount ?? 0,
-                        vehicleStopCount = v.Daily?.IdleCount ?? 0
-                    }).ToList();
-                    return System.Text.Json.JsonSerializer.Serialize(dailyStatus, Default);
-                });
-        }
-        catch (ToolValidationException ex)
-        {
-            return ex.ErrorResponse;
-        }
-        catch (Exception ex)
-        {
-            return System.Text.Json.JsonSerializer.Serialize(new { error = ex.Message }, Default);
-        }
+                    plate = v.Plate,
+                    displayName = v.CustomPlateNumber,
+                    gpsMileage = $"{(v.Daily?.GpsMileage ?? 0) / DISTANCE_DIVISOR:F2} km",
+                    runTime = FormatRunTime(v.Daily?.RunTime ?? 0),
+                    maxSpeed = $"{(v.Daily?.MaxSpeed ?? 0) / SPEED_DIVISOR:F1} km/h",
+                    overSpeedCount = v.Daily?.OverSpeed ?? 0,
+                    engineOffCount = v.Daily?.StopCount ?? 0,
+                    vehicleStopCount = v.Daily?.IdleCount ?? 0
+                }).ToList();
+                return System.Text.Json.JsonSerializer.Serialize(dailyStatus, Default);
+            });
     }
 }

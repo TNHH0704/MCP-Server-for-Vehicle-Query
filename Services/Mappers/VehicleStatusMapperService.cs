@@ -1,15 +1,15 @@
 using McpVersionVer2.Models;
+using McpVersionVer2.Models.Dto;
+using McpVersionVer2.Utils;
 
-namespace McpVersionVer2.Services;
+namespace McpVersionVer2.Services.Mappers;
 
-public class VehicleStatusMapperService
+public class VehicleStatusMapperService : IMapper<VehicleStatus, RealTimeVehicleStatusSummaryDto>
 {
     private readonly SecurityValidationService _securityService;
     private const double SPEED_DIVISOR = 100.0;
     private const double DISTANCE_DIVISOR = 1000.0;
     private const double COORDINATE_DIVISOR = 10000.0;
-
-    private static readonly DateTime CustomEpoch = new DateTime(2010, 1, 1, 0, 0, 0, DateTimeKind.Local);
 
     public VehicleStatusMapperService(SecurityValidationService securityService)
     {
@@ -22,7 +22,7 @@ public class VehicleStatusMapperService
     private DateTime UnixToDateTime(long unixTime)
     {
         if (unixTime == 0) return DateTime.MinValue;
-        return CustomEpoch.AddSeconds(unixTime);
+        return DateUtils.FromGpsEpoch((int)unixTime);
     }
 
     /// <summary>
@@ -41,7 +41,7 @@ public class VehicleStatusMapperService
 
     private (double lat, double lon) ConvertCoordinates(long x, long y)
     {
-        return (y / COORDINATE_DIVISOR, x / COORDINATE_DIVISOR);
+        return GisUtils.ConvertVehicleStatusCoordinates(x, y);
     }
 
     /// <summary>
@@ -164,8 +164,8 @@ public class VehicleStatusMapperService
             Speed = $"{vehicle.Speed / SPEED_DIVISOR:F1} km/h",
             MaxSpeed = $"{vehicle.MaxSpeed / SPEED_DIVISOR:F1} km/h",
             Location = _securityService.SanitizeOutput(string.IsNullOrEmpty(vehicle.Info) ? "Unknown" : vehicle.Info),
-            LastUpdate = UnixToDateTime(vehicle.GpsTime).ToString("dd-MM-yyyy HH:mm:ss"),
-            LastStopTime = UnixToDateTime(vehicle.LastUpdateTime).ToString("dd-MM-yyyy HH:mm:ss"),
+            LastUpdate = DateUtils.FormatForApi(UnixToDateTime(vehicle.GpsTime)),
+            LastStopTime = DateUtils.FormatForApi(UnixToDateTime(vehicle.LastUpdateTime)),
             IsRunning = vehicle.Speed > 0 && vehicle.Status == 1
         };
     }
@@ -175,7 +175,23 @@ public class VehicleStatusMapperService
     /// </summary>
     public List<RealTimeVehicleStatusSummaryDto> MapToSummaries(List<VehicleStatus> vehicles)
     {
-        return vehicles.Select(MapToSummary).ToList();
+        return this.MapList(vehicles);
+    }
+
+    /// <summary>
+    /// Map single vehicle to summary (IMapper implementation)
+    /// </summary>
+    RealTimeVehicleStatusSummaryDto IMapper<VehicleStatus, RealTimeVehicleStatusSummaryDto>.MapToDto(VehicleStatus source)
+    {
+        return MapToSummary(source);
+    }
+
+    /// <summary>
+    /// Map multiple vehicles to summaries (IMapper implementation)
+    /// </summary>
+    List<RealTimeVehicleStatusSummaryDto> IMapper<VehicleStatus, RealTimeVehicleStatusSummaryDto>.MapToDtos(IEnumerable<VehicleStatus> sources)
+    {
+        return sources.Select(MapToSummary).ToList();
     }
 
     /// <summary>
@@ -211,11 +227,6 @@ public class VehicleStatusMapperService
     /// </summary>
     public RealTimeVehicleStatusSearchResult CreateSearchResult(List<VehicleStatus> vehicles, string criteria)
     {
-        return new RealTimeVehicleStatusSearchResult
-        {
-            TotalCount = vehicles.Count,
-            SearchCriteria = criteria,
-            Vehicles = MapToSummaries(vehicles)
-        };
+        return (RealTimeVehicleStatusSearchResult)MapperHelpers.CreateSearchResult(MapToSummaries(vehicles), criteria);
     }
 }
